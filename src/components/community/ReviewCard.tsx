@@ -57,11 +57,10 @@ export const ReviewCard = ({ post }: ReviewCardProps) => {
       {/* Attached Image */}
       {post.image && (
         <div className="w-full aspect-video rounded-xl overflow-hidden border border-surface-border mb-4">
-          <img 
-            src={post.image} 
-            alt="Review attachment" 
-            className="w-full h-full object-cover"
-            loading="lazy"
+          <div 
+            className="w-full h-full bg-cover bg-center"
+            style={{ backgroundImage: `url(${post.image})` }}
+            aria-label="Review attachment"
           />
         </div>
       )}

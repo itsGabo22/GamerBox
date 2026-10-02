@@ -1,10 +1,9 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Search as SearchIcon, TrendingUp, Trophy, Swords, Gamepad2, Sparkles, Navigation as NavigationIcon } from 'lucide-react';
+import { Search as SearchIcon, TrendingUp, Swords, Gamepad2, Sparkles, Navigation as NavigationIcon } from 'lucide-react';
 import { ALL_GAMES } from '@/data/mockGames';
 import { GameCard } from '@/components/dashboard/GameCard';
-import { GlassPanel } from '@/components/ui/GlassPanel';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 

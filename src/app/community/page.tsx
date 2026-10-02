@@ -103,8 +103,8 @@ export default function CommunityPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.3 }}
             >
-              {post.type === 'review' && <ReviewCard post={post as any} />}
-              {post.type === 'poll' && <PollCard post={post as any} />}
+              {post.type === 'review' && <ReviewCard post={post as Extract<CommunityFeedItem, { type: 'review' }>} />}
+              {post.type === 'poll' && <PollCard post={post as Extract<CommunityFeedItem, { type: 'poll' }>} />}
             </motion.div>
           ))}
           {feed.length === 0 && (
