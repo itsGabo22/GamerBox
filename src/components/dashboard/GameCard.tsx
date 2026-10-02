@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Badge } from '@/components/ui/Badge';
 import { Star } from 'lucide-react';
 
 export interface Game {
