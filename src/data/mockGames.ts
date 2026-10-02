@@ -31,7 +31,13 @@ export const YOUR_GAMES: Game[] = [
     playTime: '45 hrs',
     platform: 'PC',
     genre: 'RPG',
-    progress: 30
+    progress: 30,
+    developer: 'CD Projekt Red',
+    year: 2024,
+    synopsis: 'Return to Night City in this massive overhaul. A fully immersive dystopian adventure awaits as you rise through the ranks of the criminal underworld in a visually stunning megalopolis.',
+    trophies: { earned: 12, total: 60 },
+    mission: { title: 'Meet Hanako at Embers', progress: 30 },
+    community: { user: 'V_Legend', rating: 9.5, review: 'The redux update completely changes everything. It is breathtaking.' }
   },
   {
     id: 'g4',
@@ -42,7 +48,13 @@ export const YOUR_GAMES: Game[] = [
     playTime: '200 hrs',
     platform: 'XBOX',
     genre: 'STRATEGY',
-    progress: 65
+    progress: 65,
+    developer: 'Paradox',
+    year: 2025,
+    synopsis: 'Explore the unknown void. Build your galactic empire and decide the fate of trillions across a massively procedurally generated universe.',
+    trophies: { earned: 44, total: 50 },
+    mission: { title: 'Construct the Dyson Sphere', progress: 65 },
+    community: { user: 'StarGazer', rating: 9.0, review: 'Infinite replayability.' }
   }
 ];
 
@@ -64,7 +76,13 @@ export const TRENDING_GAMES: Game[] = [
     status: 'COMPLETED',
     platform: 'PS5',
     genre: 'RPG',
-    progress: 100
+    progress: 100,
+    playTime: '145 hrs',
+    developer: 'FromSoftware',
+    year: 2022,
+    synopsis: 'Rise, Tarnished, and be guided by grace to brandish the power of the Elden Ring and become an Elden Lord in the Lands Between.',
+    trophies: { earned: 50, total: 50 },
+    community: { user: 'Maidenless', rating: 10, review: 'A masterpiece of world design.' }
   },
   {
     id: 't3',
@@ -96,3 +114,5 @@ export const TRENDING_GAMES: Game[] = [
     progress: 55
   }
 ];
+
+export const ALL_GAMES = [...YOUR_GAMES, ...TRENDING_GAMES];

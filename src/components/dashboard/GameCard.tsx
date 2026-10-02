@@ -4,6 +4,8 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Star } from 'lucide-react';
 
+import Link from 'next/link';
+
 export interface Game {
   id: string;
   title: string;
@@ -14,6 +16,12 @@ export interface Game {
   platform?: string;
   genre?: string;
   progress?: number;
+  developer?: string;
+  year?: number;
+  synopsis?: string;
+  trophies?: { earned: number; total: number };
+  mission?: { title: string; progress: number };
+  community?: { user: string; rating: number; review: string };
 }
 
 interface GameCardProps {
@@ -41,10 +49,11 @@ export const GameCard = ({ game }: GameCardProps) => {
   };
 
   return (
-    <motion.div
-      whileTap={{ scale: 0.98 }}
-      className="relative w-full aspect-[2/3] rounded-2xl overflow-hidden cursor-pointer group bg-obsidian-dark border border-surface-border transition-colors duration-300 md:hover:border-neon-red/50 md:hover:shadow-neon"
-    >
+    <Link href={`/game/${game.id}`} className="block w-full">
+      <motion.div
+        whileTap={{ scale: 0.98 }}
+        className="relative w-full aspect-[2/3] rounded-2xl overflow-hidden cursor-pointer group bg-obsidian-dark border border-surface-border transition-colors duration-300 md:hover:border-neon-red/50 md:hover:shadow-neon"
+      >
       {/* Background Image Container */}
       <div className="absolute inset-0 overflow-hidden">
         <div
@@ -89,5 +98,6 @@ export const GameCard = ({ game }: GameCardProps) => {
         )}
       </div>
     </motion.div>
+    </Link>
   );
 };
