@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Home, Compass, LayoutList, Search, User } from 'lucide-react';
+import { Home, Compass, LayoutList, Users, User } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -14,8 +14,8 @@ function cn(...inputs: (string | undefined | null | false)[]) {
 const navItems = [
   { icon: Home, label: 'Dashboard', href: '/' },
   { icon: Compass, label: 'Discover', href: '/discover' },
-  { icon: Search, label: 'Search', href: '/search' },
   { icon: LayoutList, label: 'Backlog', href: '/backlog' },
+  { icon: Users, label: 'Community', href: '/community' },
   { icon: User, label: 'Profile', href: '/profile' },
 ];
 
