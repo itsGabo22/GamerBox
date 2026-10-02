@@ -4,7 +4,6 @@ import React from 'react';
 import { usePathname } from 'next/navigation';
 import { Bell } from 'lucide-react';
 import { useNotifications } from '@/components/notifications/NotificationProvider';
-import { NotificationsDrawer } from '@/components/notifications/NotificationsDrawer';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const GlobalHeader = () => {
@@ -48,9 +47,6 @@ export const GlobalHeader = () => {
           </AnimatePresence>
         </button>
       </header>
-
-      {/* Render Drawer globally */}
-      <NotificationsDrawer />
     </>
   );
 };

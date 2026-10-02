@@ -4,6 +4,7 @@ import "./globals.css";
 import { Navigation } from "@/components/layout/Navigation";
 import { GlobalHeader } from "@/components/layout/GlobalHeader";
 import { NotificationProvider } from "@/components/notifications/NotificationProvider";
+import { NotificationsDrawer } from "@/components/notifications/NotificationsDrawer";
 
 const inter = Inter({ 
   subsets: ["latin"], 
@@ -28,8 +29,6 @@ export const viewport: Viewport = {
   themeColor: "#050505",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export const metadata: Metadata = {
@@ -61,6 +60,7 @@ export default function RootLayout({
               {children}
             </main>
             <Navigation />
+            <NotificationsDrawer />
           </div>
         </NotificationProvider>
       </body>
