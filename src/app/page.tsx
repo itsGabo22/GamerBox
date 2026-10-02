@@ -4,7 +4,7 @@ import { YOUR_GAMES, TRENDING_GAMES } from '@/data/mockGames';
 
 export default function Home() {
   return (
-    <div className="flex flex-col gap-12 pb-12 w-full max-w-[1600px] mx-auto overflow-hidden">
+    <div className="flex flex-col gap-12 pb-12 w-full overflow-hidden">
       <Hero />
 
       <section className="px-4 md:px-8">
