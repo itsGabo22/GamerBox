@@ -204,7 +204,7 @@ export default function GameDetailPage({ params }: { params: { id: string } }) {
                     <span className="font-mono text-[10px] font-bold text-white">{game.community.rating.toFixed(1)}</span>
                   </div>
                 </div>
-                <p className="font-body text-sm text-white/70 italic">"{game.community.review}"</p>
+                <p className="font-body text-sm text-white/70 italic">&quot;{game.community.review}&quot;</p>
               </div>
             </div>
           </GlassPanel>
