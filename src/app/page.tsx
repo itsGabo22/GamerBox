@@ -16,9 +16,9 @@ export default function Home() {
         </div>
         
         {/* Horizontal Scroll Container */}
-        <div className="flex overflow-x-auto gap-6 pb-6 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+        <div className="flex overflow-x-auto gap-4 pb-6 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
           {YOUR_GAMES.map((game) => (
-            <div key={game.id} className="snap-start shrink-0">
+            <div key={game.id} className="snap-start shrink-0 w-[160px] md:w-[200px]">
               <GameCard game={game} />
             </div>
           ))}
@@ -34,9 +34,9 @@ export default function Home() {
         </div>
         
         {/* Horizontal Scroll Container */}
-        <div className="flex overflow-x-auto gap-6 pb-6 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+        <div className="flex overflow-x-auto gap-4 pb-6 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
           {TRENDING_GAMES.map((game) => (
-            <div key={game.id} className="snap-start shrink-0">
+            <div key={game.id} className="snap-start shrink-0 w-[160px] md:w-[200px]">
               <GameCard game={game} />
             </div>
           ))}
