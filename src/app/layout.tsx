@@ -21,6 +21,8 @@ const spaceMono = Space_Mono({
   display: 'swap',
 });
 
+import { Sidebar } from "@/components/layout/Sidebar";
+
 export const metadata: Metadata = {
   title: "GamerBox | Obsidian Arcade",
   description: "A premium social platform for gamers",
@@ -33,8 +35,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} ${spaceMono.variable}`}>
-      <body className="antialiased min-h-screen flex flex-col">
-        {children}
+      <body className="antialiased min-h-screen flex flex-col bg-obsidian-black text-white selection:bg-neon-red/30">
+        <Sidebar />
+        <main className="flex-1 md:pl-64 pb-24 md:pb-0 relative min-h-screen">
+          {children}
+        </main>
       </body>
     </html>
   );
