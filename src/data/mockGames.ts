@@ -10,7 +10,9 @@ export const YOUR_GAMES: Game[] = [
     playTime: '124 hrs',
     platform: 'PC',
     genre: 'RACING',
-    progress: 100
+    progress: 100,
+    matchPercentage: 89,
+    releaseDate: 'Oct 12, 2023'
   },
   {
     id: 'g2',
@@ -20,7 +22,9 @@ export const YOUR_GAMES: Game[] = [
     status: 'PLAYING',
     playTime: '890 hrs',
     platform: 'PS5',
-    genre: 'ACTION'
+    genre: 'ACTION',
+    matchPercentage: 75,
+    releaseDate: 'Feb 4, 2019'
   },
   {
     id: 'g3',
@@ -37,7 +41,9 @@ export const YOUR_GAMES: Game[] = [
     synopsis: 'Return to Night City in this massive overhaul. A fully immersive dystopian adventure awaits as you rise through the ranks of the criminal underworld in a visually stunning megalopolis.',
     trophies: { earned: 12, total: 60 },
     mission: { title: 'Meet Hanako at Embers', progress: 30 },
-    community: { user: 'V_Legend', rating: 9.5, review: 'The redux update completely changes everything. It is breathtaking.' }
+    community: { user: 'V_Legend', rating: 9.5, review: 'The redux update completely changes everything. It is breathtaking.' },
+    matchPercentage: 99,
+    releaseDate: 'Dec 10, 2020'
   },
   {
     id: 'g4',
@@ -54,7 +60,9 @@ export const YOUR_GAMES: Game[] = [
     synopsis: 'Explore the unknown void. Build your galactic empire and decide the fate of trillions across a massively procedurally generated universe.',
     trophies: { earned: 44, total: 50 },
     mission: { title: 'Construct the Dyson Sphere', progress: 65 },
-    community: { user: 'StarGazer', rating: 9.0, review: 'Infinite replayability.' }
+    community: { user: 'StarGazer', rating: 9.0, review: 'Infinite replayability.' },
+    matchPercentage: 82,
+    releaseDate: 'May 9, 2016'
   }
 ];
 
@@ -66,7 +74,9 @@ export const TRENDING_GAMES: Game[] = [
     rating: 9.1,
     status: 'PLAYING',
     platform: 'PC',
-    genre: 'ACTION'
+    genre: 'ACTION',
+    matchPercentage: 92,
+    releaseDate: 'Jun 2, 2020'
   },
   {
     id: 't2',
@@ -82,7 +92,9 @@ export const TRENDING_GAMES: Game[] = [
     year: 2022,
     synopsis: 'Rise, Tarnished, and be guided by grace to brandish the power of the Elden Ring and become an Elden Lord in the Lands Between.',
     trophies: { earned: 50, total: 50 },
-    community: { user: 'Maidenless', rating: 10, review: 'A masterpiece of world design.' }
+    community: { user: 'Maidenless', rating: 10, review: 'A masterpiece of world design.' },
+    matchPercentage: 98,
+    releaseDate: 'Feb 25, 2022'
   },
   {
     id: 't3',
@@ -92,7 +104,9 @@ export const TRENDING_GAMES: Game[] = [
     status: 'PENDING',
     platform: 'PS5',
     genre: 'ACTION',
-    progress: 0
+    progress: 0,
+    matchPercentage: 88,
+    releaseDate: 'Jul 17, 2020'
   },
   {
     id: 't4',
@@ -101,7 +115,9 @@ export const TRENDING_GAMES: Game[] = [
     rating: 9.9,
     status: 'PENDING',
     platform: 'SWITCH',
-    genre: 'RPG'
+    genre: 'RPG',
+    matchPercentage: 95,
+    releaseDate: 'TBA 2026'
   },
   {
     id: 't5',
@@ -111,7 +127,9 @@ export const TRENDING_GAMES: Game[] = [
     status: 'PLAYING',
     platform: 'PC',
     genre: 'ACTION',
-    progress: 55
+    progress: 55,
+    matchPercentage: 74,
+    releaseDate: 'Feb 8, 2024'
   }
 ];
 

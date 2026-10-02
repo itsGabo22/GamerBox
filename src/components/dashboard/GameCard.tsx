@@ -22,6 +22,8 @@ export interface Game {
   trophies?: { earned: number; total: number };
   mission?: { title: string; progress: number };
   community?: { user: string; rating: number; review: string };
+  matchPercentage?: number;
+  releaseDate?: string;
 }
 
 interface GameCardProps {
