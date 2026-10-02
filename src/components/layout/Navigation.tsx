@@ -22,6 +22,9 @@ const navItems = [
 export const Navigation = () => {
   const pathname = usePathname();
 
+  // Hide on game detail routes to provide immersive full-screen experience
+  if (pathname.startsWith('/game/')) return null;
+
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pb-6 pt-4 px-4 bg-gradient-to-t from-obsidian-black via-obsidian-black/80 to-transparent pointer-events-none">
       <nav className="glass-panel rounded-full px-6 py-4 flex items-center justify-between w-full max-w-md pointer-events-auto shadow-glass border border-surface-border bg-obsidian-dark/90 backdrop-blur-xl">
