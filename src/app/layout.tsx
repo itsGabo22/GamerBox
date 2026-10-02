@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk, Space_Mono } from "next/font/google";
 import "./globals.css";
+import { Navigation } from "@/components/layout/Navigation";
 
 const inter = Inter({ 
   subsets: ["latin"], 
@@ -21,8 +22,6 @@ const spaceMono = Space_Mono({
   display: 'swap',
 });
 
-import { Sidebar } from "@/components/layout/Sidebar";
-
 export const metadata: Metadata = {
   title: "GamerBox | Obsidian Arcade",
   description: "A premium social platform for gamers",
@@ -36,10 +35,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} ${spaceMono.variable}`}>
       <body className="antialiased min-h-screen flex flex-col bg-obsidian-black text-white selection:bg-neon-red/30">
-        <Sidebar />
-        <main className="flex-1 md:pl-64 pb-24 md:pb-0 relative min-h-screen">
-          {children}
-        </main>
+        <div className="w-full max-w-md mx-auto min-h-screen relative flex flex-col bg-obsidian-dark/20 border-x border-white/5 shadow-2xl">
+          <main className="flex-1 pb-32 relative">
+            {children}
+          </main>
+          <Navigation />
+        </div>
       </body>
     </html>
   );
