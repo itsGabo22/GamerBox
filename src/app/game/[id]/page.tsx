@@ -59,7 +59,10 @@ export default function GameDetailPage({ params }: { params: { id: string } }) {
       <div className="fixed top-[60vh] md:top-[70vh] bottom-0 left-0 right-0 z-10 bg-obsidian-black pointer-events-none" />
 
       {/* Top Bar z-30 */}
-      <div className="sticky top-0 z-30 flex items-center justify-between p-4 pt-safe-top">
+      <div 
+        className="sticky top-0 z-30 flex items-center justify-between p-4" 
+        style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)' }}
+      >
         <button 
           onClick={() => router.back()}
           className="w-10 h-10 rounded-full bg-obsidian-black/50 backdrop-blur-md flex items-center justify-center text-white border border-white/10"
@@ -209,8 +212,8 @@ export default function GameDetailPage({ params }: { params: { id: string } }) {
       </div>
 
       {/* Sticky PLAY NOW Action z-40 */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 pb-safe pt-4 px-4 bg-gradient-to-t from-obsidian-black via-obsidian-black/90 to-transparent">
-        <div className="max-w-md mx-auto pb-6">
+      <div className="fixed bottom-0 left-0 right-0 z-40 pt-4 px-4 pb-6 md:pb-8 bg-gradient-to-t from-obsidian-black via-obsidian-black/90 to-transparent" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}>
+        <div className="max-w-md mx-auto">
           <Button 
             variant="neon" 
             size="lg" 
