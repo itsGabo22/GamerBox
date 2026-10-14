@@ -1,6 +1,24 @@
-import { Game } from '@/components/dashboard/GameCard';
+export interface MockGame {
+  id: string;
+  title: string;
+  image?: string;
+  rating: number;
+  status: string;
+  playTime?: string;
+  platform?: string;
+  genre?: string;
+  progress?: number;
+  developer?: string;
+  year?: number;
+  synopsis?: string;
+  trophies?: { earned: number; total: number };
+  mission?: { title: string; progress: number };
+  community?: { user: string; rating: number; review: string };
+  matchPercentage?: number;
+  releaseDate?: string;
+}
 
-export const YOUR_GAMES: Game[] = [
+export const YOUR_GAMES: MockGame[] = [
   {
     id: 'g1',
     title: 'Neon Drift: Tokyo',
@@ -66,7 +84,7 @@ export const YOUR_GAMES: Game[] = [
   }
 ];
 
-export const TRENDING_GAMES: Game[] = [
+export const TRENDING_GAMES: MockGame[] = [
   {
     id: 't1',
     title: 'Valorant',
@@ -133,4 +151,4 @@ export const TRENDING_GAMES: Game[] = [
   }
 ];
 
-export const ALL_GAMES = [...YOUR_GAMES, ...TRENDING_GAMES];
+export const ALL_GAMES: MockGame[] = [...YOUR_GAMES, ...TRENDING_GAMES];
