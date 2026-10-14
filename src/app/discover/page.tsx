@@ -5,7 +5,10 @@ import { Search as SearchIcon, TrendingUp, Swords, Gamepad2, Sparkles, Navigatio
 import { ALL_GAMES } from '@/data/mockGames';
 import { GameCard } from '@/components/dashboard/GameCard';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useGameStore } from '@/store/useGameStore';
+import { getOracleRecommendations, AiRecommendation } from '@/services/aiService';
+import { Button } from '@/components/ui/Button';
 
 const GENRES = [
   { id: 'all', label: 'Tendencias', icon: TrendingUp },
@@ -16,12 +19,29 @@ const GENRES = [
 ];
 
 export default function DiscoverPage() {
+  const games = useGameStore(state => state.games);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeGenre, setActiveGenre] = useState('all');
 
+  const [isOracleLoading, setIsOracleLoading] = useState(false);
+  const [oracleResults, setOracleResults] = useState<AiRecommendation[] | null>(null);
+
+  const handleOracleClick = async () => {
+    setIsOracleLoading(true);
+    try {
+      const favorites = games.filter(g => g.isFavorite).map(g => g.title);
+      const completed = games.filter(g => g.status === 'COMPLETED').map(g => g.title);
+
+      const results = await getOracleRecommendations(favorites, completed);
+      setOracleResults(results);
+    } finally {
+      setIsOracleLoading(false);
+    }
+  };
+
   // Filter games based on search and selected genre
   const filteredGames = useMemo(() => {
-    let result = ALL_GAMES;
+    let result = games;
     
     // Apply search filter
     if (searchQuery.trim() !== '') {
@@ -40,7 +60,7 @@ export default function DiscoverPage() {
     }
     
     return result;
-  }, [searchQuery, activeGenre]);
+  }, [searchQuery, activeGenre, games]);
 
   // Upcoming/Recent Releases logic (just use recent/highest rated as mock)
   const releases = ALL_GAMES.slice(0, 4);
@@ -59,7 +79,7 @@ export default function DiscoverPage() {
       </header>
 
       {/* Search Input */}
-      <div className="relative w-full mb-8 z-30">
+      <div className="relative w-full mb-6 z-30">
         <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-text-dim">
           <SearchIcon size={20} />
         </div>
@@ -71,6 +91,97 @@ export default function DiscoverPage() {
           className="w-full h-14 pl-12 pr-4 bg-surface-glass backdrop-blur-xl border border-surface-border rounded-2xl text-white placeholder:text-text-dim focus:outline-none focus:border-neon-red focus:ring-1 focus:ring-neon-red transition-all shadow-glass"
         />
       </div>
+
+      {/* GamerBox AI Oracle Section */}
+      <section className="mb-8 relative z-20">
+        <AnimatePresence mode="wait">
+          {!oracleResults && !isOracleLoading && (
+            <motion.div
+              key="oracle-btn"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              <Button
+                variant="neon"
+                className="w-full h-14 font-heading font-bold text-lg tracking-wide uppercase shadow-neon flex items-center justify-center gap-2"
+                onClick={handleOracleClick}
+              >
+                <Sparkles size={20} />
+                ANALIZAR MI PERFIL CON IA
+              </Button>
+            </motion.div>
+          )}
+
+          {isOracleLoading && (
+            <motion.div
+              key="oracle-loading"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full h-24 bg-surface-glass border border-surface-border rounded-2xl flex flex-col items-center justify-center gap-3 overflow-hidden relative"
+            >
+              <motion.div
+                animate={{ scale: [1, 1.05, 1], opacity: [0.5, 1, 0.5] }}
+                transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                className="absolute inset-0 bg-neon-red/10"
+              />
+              <Sparkles size={24} className="text-neon-red animate-pulse relative z-10" />
+              <p className="font-mono text-[10px] uppercase tracking-widest text-text-dim relative z-10">
+                Sincronizando red neuronal con tu biblioteca...
+              </p>
+            </motion.div>
+          )}
+
+          {oracleResults && !isOracleLoading && (
+            <motion.div
+              key="oracle-results"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="w-full flex flex-col gap-4"
+            >
+              <div className="flex items-center justify-between px-2">
+                <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-mint-green flex items-center gap-2">
+                  <Sparkles size={12} />
+                  GamerBox AI Oracle
+                </h2>
+                <button
+                  onClick={() => setOracleResults(null)}
+                  className="font-mono text-[10px] text-text-dim uppercase underline"
+                >
+                  Reset
+                </button>
+              </div>
+
+              <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:-mx-8 md:px-8">
+                {oracleResults.map((game) => (
+                  <div key={game.id} className="snap-start shrink-0 w-[240px] md:w-[280px] relative">
+                    <GameCard game={{
+                      id: game.id,
+                      title: game.title,
+                      coverUrl: game.coverUrl,
+                      status: 'AI REC',
+                      rating: 0,
+                      isFavorite: false,
+                      timePlayed: '0 hrs',
+                      platform: game.platform,
+                      genre: game.genre,
+                      matchPercentage: game.matchPercentage,
+                    }} />
+                    <div className="absolute -top-3 -right-2 z-10">
+                      <div className="bg-obsidian-black px-3 py-1.5 rounded-lg border-2 border-mint-green shadow-[0_0_15px_rgba(94,230,168,0.4)]">
+                        <p className="font-mono text-xs font-bold text-mint-green tracking-widest uppercase whitespace-nowrap drop-shadow-md">
+                          {game.matchPercentage}% AI MATCH
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </section>
 
       {/* Section 1: LANZAMIENTOS (16:9 Release Cards) */}
       {searchQuery === '' && activeGenre === 'all' && (
