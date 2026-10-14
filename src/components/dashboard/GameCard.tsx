@@ -6,25 +6,7 @@ import { Star } from 'lucide-react';
 
 import Link from 'next/link';
 
-export interface Game {
-  id: string;
-  title: string;
-  image: string;
-  rating: number;
-  status: string;
-  playTime?: string;
-  platform?: string;
-  genre?: string;
-  progress?: number;
-  developer?: string;
-  year?: number;
-  synopsis?: string;
-  trophies?: { earned: number; total: number };
-  mission?: { title: string; progress: number };
-  community?: { user: string; rating: number; review: string };
-  matchPercentage?: number;
-  releaseDate?: string;
-}
+import { Game } from '@/store/useGameStore';
 
 interface GameCardProps {
   game: Game;
@@ -60,7 +42,7 @@ export const GameCard = ({ game }: GameCardProps) => {
       <div className="absolute inset-0 overflow-hidden">
         <div
           className="w-full h-full bg-cover bg-center transition-transform duration-500 md:group-hover:scale-105"
-          style={{ backgroundImage: `url(${game.image})` }}
+          style={{ backgroundImage: `url(${game.coverUrl})` }}
         />
         {/* Persistent Gradient Overlay for text legibility */}
         <div className="absolute inset-0 bg-gradient-to-t from-obsidian-black via-obsidian-black/40 to-transparent" />

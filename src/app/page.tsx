@@ -1,8 +1,14 @@
+'use client';
+
 import { Hero } from '@/components/dashboard/Hero';
 import { GameCard } from '@/components/dashboard/GameCard';
-import { YOUR_GAMES, TRENDING_GAMES } from '@/data/mockGames';
+import { useGameStore } from '@/store/useGameStore';
 
 export default function Home() {
+  const games = useGameStore(state => state.games);
+  const yourGames = games.slice(0, 4);
+  const trendingGames = games.slice(4, 9);
+
   return (
     <div className="flex flex-col gap-12 pb-12 w-full overflow-hidden">
       <Hero />
@@ -17,7 +23,7 @@ export default function Home() {
         
         {/* Horizontal Scroll Container */}
         <div className="flex overflow-x-auto gap-4 pb-6 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-          {YOUR_GAMES.map((game) => (
+          {yourGames.map((game) => (
             <div key={game.id} className="snap-start shrink-0 w-[160px] md:w-[200px]">
               <GameCard game={game} />
             </div>
@@ -35,7 +41,7 @@ export default function Home() {
         
         {/* Horizontal Scroll Container */}
         <div className="flex overflow-x-auto gap-4 pb-6 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-          {TRENDING_GAMES.map((game) => (
+          {trendingGames.map((game) => (
             <div key={game.id} className="snap-start shrink-0 w-[160px] md:w-[200px]">
               <GameCard game={game} />
             </div>

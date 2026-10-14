@@ -5,13 +5,7 @@ import { BacklogStats } from '@/components/backlog/BacklogStats';
 import { Search } from '@/components/backlog/Search';
 import { FilterChips, Filter } from '@/components/backlog/FilterChips';
 import { GameCard } from '@/components/dashboard/GameCard';
-import { YOUR_GAMES, TRENDING_GAMES } from '@/data/mockGames';
-
-// Combine mock data to create a larger backlog for demonstration
-const BACKLOG_GAMES = [...YOUR_GAMES, ...TRENDING_GAMES].map((g, i) => ({
-  ...g,
-  id: `${g.id}-${i}` // ensure unique IDs
-}));
+import { useGameStore } from '@/store/useGameStore';
 
 const AVAILABLE_FILTERS: Filter[] = [
   { id: 'status:PLAYING', label: 'PLAYING', type: 'status' },
@@ -25,6 +19,7 @@ const AVAILABLE_FILTERS: Filter[] = [
 ];
 
 export default function BacklogPage() {
+  const games = useGameStore(state => state.games);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
 
@@ -42,7 +37,7 @@ export default function BacklogPage() {
   };
 
   const filteredGames = useMemo(() => {
-    return BACKLOG_GAMES.filter((game) => {
+    return games.filter((game) => {
       // 1. Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -74,7 +69,7 @@ export default function BacklogPage() {
 
       return true;
     });
-  }, [searchQuery, activeFilters]);
+  }, [searchQuery, activeFilters, games]);
 
   return (
     <div className="flex flex-col w-full px-4 pt-6 md:px-8 pb-12">
@@ -103,7 +98,7 @@ export default function BacklogPage() {
           activeFilters={activeFilters}
           onToggle={handleToggleFilter}
           onReset={handleResetFilters}
-          totalCount={BACKLOG_GAMES.length}
+          totalCount={games.length}
         />
       </div>
 

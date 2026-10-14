@@ -2,20 +2,20 @@
 
 import React, { useState, useEffect } from 'react';
 import { notFound, useRouter } from 'next/navigation';
-import { ALL_GAMES } from '@/data/mockGames';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Share, Bookmark, Star, Clock, Trophy, Target } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { Button } from '@/components/ui/Button';
+import { useGameStore } from '@/store/useGameStore';
 
 export default function GameDetailClient({ params }: { params: { id: string } }) {
   const router = useRouter();
   const gameId = params.id;
-  // Handle if the ID is formatted with the index in the backlog (e.g. g2-1)
   const baseId = gameId.split('-')[0];
-  const game = ALL_GAMES.find(g => g.id === baseId || g.id === gameId);
 
-  const [isBookmarked, setIsBookmarked] = useState(false);
+  const { games, toggleFavorite, updateGameStatus } = useGameStore();
+  const game = games.find(g => g.id === baseId || g.id === gameId);
+
   const [connectionState, setConnectionState] = useState<'idle' | 'connecting' | 'success'>('idle');
 
   useEffect(() => {
@@ -50,7 +50,7 @@ export default function GameDetailClient({ params }: { params: { id: string } })
       <div className="fixed inset-0 w-full h-[60vh] md:h-[70vh] z-0 pointer-events-none">
         <div 
           className="w-full h-full bg-cover bg-center"
-          style={{ backgroundImage: `url(${game.image})` }}
+          style={{ backgroundImage: `url(${game.coverUrl})` }}
         />
       </div>
 
@@ -78,13 +78,13 @@ export default function GameDetailClient({ params }: { params: { id: string } })
             <Share size={18} />
           </button>
           <button 
-            onClick={() => setIsBookmarked(!isBookmarked)}
+            onClick={() => toggleFavorite(game.id)}
             className="w-10 h-10 rounded-full bg-obsidian-black/50 backdrop-blur-md flex items-center justify-center border border-white/10 transition-colors"
             aria-label="Bookmark"
           >
             <Bookmark 
               size={18} 
-              className={isBookmarked ? "text-neon-red-bright fill-neon-red-bright" : "text-white"} 
+              className={game.isFavorite ? "text-neon-red-bright fill-neon-red-bright" : "text-white"}
             />
           </button>
         </div>
@@ -102,14 +102,19 @@ export default function GameDetailClient({ params }: { params: { id: string } })
               {game.genre || 'GAME'}
             </span>
             {game.status === 'COMPLETED' && (
-              <span className="px-2 py-1 rounded bg-mint-green/20 backdrop-blur-md text-mint-green border border-mint-green/30 font-mono text-[10px] font-bold tracking-widest uppercase">
+              <button onClick={() => updateGameStatus(game.id, 'PENDING')} className="px-2 py-1 rounded bg-mint-green/20 backdrop-blur-md text-mint-green border border-mint-green/30 font-mono text-[10px] font-bold tracking-widest uppercase">
                 COMPLETED
-              </span>
+              </button>
             )}
             {game.status === 'PLAYING' && (
-              <span className="px-2 py-1 rounded bg-neon-red/20 backdrop-blur-md text-neon-red-bright border border-neon-red/30 font-mono text-[10px] font-bold tracking-widest uppercase">
+              <button onClick={() => updateGameStatus(game.id, 'COMPLETED')} className="px-2 py-1 rounded bg-neon-red/20 backdrop-blur-md text-neon-red-bright border border-neon-red/30 font-mono text-[10px] font-bold tracking-widest uppercase">
                 PLAYING
-              </span>
+              </button>
+            )}
+            {game.status === 'PENDING' && (
+              <button onClick={() => updateGameStatus(game.id, 'PLAYING')} className="px-2 py-1 rounded bg-surface-glass backdrop-blur-md text-white border border-surface-border font-mono text-[10px] font-bold tracking-widest uppercase">
+                PENDING
+              </button>
             )}
           </div>
           <h1 className="font-heading font-bold text-4xl md:text-5xl leading-tight text-white drop-shadow-lg mb-2 text-balance">
@@ -136,7 +141,7 @@ export default function GameDetailClient({ params }: { params: { id: string } })
               <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-text-dim">Time Played</h2>
             </div>
             <p className="font-heading font-bold text-2xl text-white">
-              {game.playTime || '0 hrs'}
+              {game.timePlayed || '0 hrs'}
             </p>
           </GlassPanel>
           <GlassPanel className="p-4">

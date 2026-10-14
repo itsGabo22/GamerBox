@@ -4,7 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { GameCard } from '@/components/dashboard/GameCard';
-import { ALL_GAMES } from '@/data/mockGames';
+import { useGameStore } from '@/store/useGameStore';
 
 const MOCK_PROFILE = {
   username: 'AlexGhost',
@@ -28,7 +28,16 @@ const MOCK_PROFILE = {
 };
 
 export default function ProfilePage() {
-  const favoriteGames = ALL_GAMES.filter(g => MOCK_PROFILE.favorites.includes(g.id));
+  const games = useGameStore(state => state.games);
+
+  const favoriteGames = games.filter(g => g.isFavorite);
+  const platinums = games.filter(g => g.status === 'COMPLETED').length;
+
+  const totalGames = games.length || 1;
+  const genres = ['RPG', 'ACTION', 'SHOOTER', 'INDIE', 'RACING', 'STRATEGY'].map(label => ({
+    label,
+    percentage: Math.round((games.filter(g => g.genre === label).length / totalGames) * 100)
+  })).filter(g => g.percentage > 0).sort((a, b) => b.percentage - a.percentage);
 
   return (
     <div className="flex flex-col w-full px-4 pt-6 md:px-8 pb-12 overflow-x-hidden">
@@ -86,7 +95,7 @@ export default function ProfilePage() {
         </GlassPanel>
         <GlassPanel className="p-4 flex flex-col items-center justify-center text-center">
           <p className="font-mono text-[9px] text-text-dim mb-1 tracking-widest uppercase truncate w-full">Platinums</p>
-          <p className="font-heading font-black text-2xl text-mint-green drop-shadow-[0_0_8px_rgba(94,230,168,0.5)]">{MOCK_PROFILE.kpis.platinums}</p>
+          <p className="font-heading font-black text-2xl text-mint-green drop-shadow-[0_0_8px_rgba(94,230,168,0.5)]">{platinums}</p>
         </GlassPanel>
         <GlassPanel className="p-4 flex flex-col items-center justify-center text-center">
           <p className="font-mono text-[9px] text-text-dim mb-1 tracking-widest uppercase truncate w-full">Total Time</p>
@@ -126,7 +135,7 @@ export default function ProfilePage() {
           Distribución por Géneros
         </h2>
         <GlassPanel className="p-5 flex flex-col gap-4">
-          {MOCK_PROFILE.genres.map((genre, i) => (
+          {genres.map((genre, i) => (
             <div key={genre.label} className="w-full">
               <div className="flex justify-between items-end mb-2">
                 <span className="font-heading text-sm font-bold text-white tracking-wide">{genre.label}</span>
