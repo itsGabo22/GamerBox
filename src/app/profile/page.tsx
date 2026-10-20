@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { GameCard } from '@/components/dashboard/GameCard';
 import { useGameStore } from '@/store/useGameStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { LogOut } from 'lucide-react';
 
 const MOCK_PROFILE = {
   username: 'AlexGhost',
@@ -29,6 +31,7 @@ const MOCK_PROFILE = {
 
 export default function ProfilePage() {
   const games = useGameStore(state => state.games);
+  const { user, logout } = useAuthStore();
 
   const favoriteGames = games.filter(g => g.isFavorite);
   const platinums = games.filter(g => g.status === 'COMPLETED').length;
@@ -50,17 +53,23 @@ export default function ProfilePage() {
         <div className="relative mb-4">
           <div className="absolute inset-0 rounded-full bg-neon-red blur-[20px] opacity-20" />
           <div 
-            className="relative w-24 h-24 rounded-full bg-cover bg-center border-2 border-surface-border shadow-2xl"
-            style={{ backgroundImage: `url(${MOCK_PROFILE.avatar})` }}
-            aria-label={`Avatar de ${MOCK_PROFILE.username}`}
-          />
+            className="relative w-24 h-24 rounded-full bg-cover bg-center border-2 border-surface-border shadow-2xl bg-obsidian-black flex items-center justify-center overflow-hidden"
+            style={{ backgroundImage: user?.photoURL ? `url(${user.photoURL})` : 'none' }}
+            aria-label={`Avatar de ${user?.displayName || MOCK_PROFILE.username}`}
+          >
+            {!user?.photoURL && (
+              <span className="font-heading font-bold text-3xl text-text-dim">
+                {(user?.displayName || MOCK_PROFILE.username).charAt(0).toUpperCase()}
+              </span>
+            )}
+          </div>
         </div>
         
         <h1 className="font-heading font-bold text-2xl text-white mb-1">
-          {MOCK_PROFILE.username}
+          {user?.displayName || MOCK_PROFILE.username}
         </h1>
         <p className="font-mono text-xs font-bold tracking-widest text-text-dim uppercase">
-          LVL {MOCK_PROFILE.level} • {MOCK_PROFILE.title}
+          {user?.email || 'N/A'} • LVL {MOCK_PROFILE.level}
         </p>
 
         {/* XP Progress */}
@@ -152,6 +161,22 @@ export default function ProfilePage() {
             </div>
           ))}
         </GlassPanel>
+      </motion.section>
+
+      {/* Logout Action */}
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="mt-12 mb-8 px-4"
+      >
+        <button
+          onClick={() => logout()}
+          className="w-full flex items-center justify-center gap-2 h-14 bg-obsidian-dark border border-neon-red/30 rounded-2xl text-neon-red-bright font-mono text-xs font-bold tracking-widest uppercase transition-all hover:bg-neon-red/10 shadow-[0_0_15px_rgba(255,42,85,0.1)] active:scale-95"
+        >
+          <LogOut size={16} />
+          Cerrar Sesión
+        </button>
       </motion.section>
     </div>
   );
