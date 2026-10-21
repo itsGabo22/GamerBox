@@ -18,7 +18,7 @@ interface SettingsActions {
 export const useSettingsStore = create<SettingsState & SettingsActions>()(
   persist(
     (set) => ({
-      theme: 'dark',
+      theme: 'light',
       language: 'es',
       isSettingsOpen: false,
 

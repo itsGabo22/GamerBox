@@ -30,35 +30,38 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [user, isAuthLoading, pathname, router]);
 
-  const isLoginRoute = pathname === '/login';
-
-  if (isAuthLoading || (!user && !isLoginRoute) || (user && isLoginRoute)) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-obsidian-black text-white w-full">
-        <motion.div
-          animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
-          transition={{ repeat: Infinity, duration: 1.5 }}
-          className="w-16 h-16 border-t-2 border-r-2 border-neon-red rounded-full mb-4"
-          style={{ borderBottom: '2px solid transparent', borderLeft: '2px solid transparent' }}
-        />
-        <p className="font-mono text-sm uppercase tracking-widest text-neon-red-bright animate-pulse">
-          Verificando credenciales...
-        </p>
-      </div>
-    );
-  }
+  const isLoginRoute = pathname === '/login' || pathname === '/login/' || pathname?.includes('/login');
+  const isTransitioning = (!user && !isLoginRoute) || (user && isLoginRoute);
 
   return (
     <>
-      {!isLoginRoute && <GlobalHeader />}
-      <main className={`flex-1 relative ${!isLoginRoute ? 'pb-32' : ''}`}>
-        <HydrationGuard>
-          {children}
-        </HydrationGuard>
-      </main>
-      {!isLoginRoute && <Navigation />}
-      {!isLoginRoute && <NotificationsDrawer />}
-      <SettingsModal />
+      {/* Show loading overlay if auth is loading or a route transition is needed */}
+      {(isAuthLoading || isTransitioning) && (
+        <div className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-obsidian-black text-white w-full">
+          <motion.div
+            animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
+            transition={{ repeat: Infinity, duration: 1.5 }}
+            className="w-16 h-16 border-t-2 border-r-2 border-neon-red rounded-full mb-4"
+            style={{ borderBottom: '2px solid transparent', borderLeft: '2px solid transparent' }}
+          />
+          <p className="font-mono text-sm uppercase tracking-widest text-neon-red-bright animate-pulse">
+            Verificando credenciales...
+          </p>
+        </div>
+      )}
+
+      {/* Render children so Next.js router doesn't abort the transition, but hide Chrome if on login */}
+      <div className={(isAuthLoading || isTransitioning) ? 'hidden' : 'contents'}>
+        {!isLoginRoute && <GlobalHeader />}
+        <main className={`flex-1 relative ${!isLoginRoute ? 'pb-32' : ''}`}>
+          <HydrationGuard>
+            {children}
+          </HydrationGuard>
+        </main>
+        {!isLoginRoute && <Navigation />}
+        {!isLoginRoute && <NotificationsDrawer />}
+        <SettingsModal />
+      </div>
     </>
   );
 }
