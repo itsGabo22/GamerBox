@@ -2,13 +2,15 @@
 
 import React from 'react';
 import { usePathname } from 'next/navigation';
-import { Bell } from 'lucide-react';
+import { Bell, Settings } from 'lucide-react';
 import { useNotifications } from '@/components/notifications/NotificationProvider';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSettingsStore } from '@/store/useSettingsStore';
 
 export const GlobalHeader = () => {
   const pathname = usePathname();
   const { unreadCount, openDrawer } = useNotifications();
+  const openSettings = useSettingsStore(state => state.openSettings);
 
   // Hide on game detail routes to provide immersive full-screen experience
   if (pathname.startsWith('/game/')) return null;
@@ -25,27 +27,37 @@ export const GlobalHeader = () => {
           </span>
         </div>
 
-        <button
-          onClick={openDrawer}
-          className="relative w-10 h-10 rounded-full bg-surface-glass flex items-center justify-center border border-surface-border text-white hover:bg-surface-glass-hover transition-colors"
-          aria-label="Notificaciones"
-        >
-          <Bell size={18} />
-          <AnimatePresence>
-            {unreadCount > 0 && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                exit={{ scale: 0 }}
-                className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-neon-red-bright flex items-center justify-center shadow-neon"
-              >
-                <span className="font-mono text-[10px] font-bold text-white">
-                  {unreadCount}
-                </span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={openSettings}
+            className="w-10 h-10 rounded-full bg-surface-glass flex items-center justify-center border border-surface-border text-white hover:bg-surface-glass-hover hover:rotate-90 transition-all duration-300"
+            aria-label="Ajustes"
+          >
+            <Settings size={18} />
+          </button>
+
+          <button
+            onClick={openDrawer}
+            className="relative w-10 h-10 rounded-full bg-surface-glass flex items-center justify-center border border-surface-border text-white hover:bg-surface-glass-hover transition-colors"
+            aria-label="Notificaciones"
+          >
+            <Bell size={18} />
+            <AnimatePresence>
+              {unreadCount > 0 && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0 }}
+                  className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-neon-red-bright flex items-center justify-center shadow-neon"
+                >
+                  <span className="font-mono text-[10px] font-bold text-white">
+                    {unreadCount}
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </button>
+        </div>
       </header>
     </>
   );

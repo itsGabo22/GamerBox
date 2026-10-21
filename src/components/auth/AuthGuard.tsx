@@ -8,6 +8,7 @@ import { GlobalHeader } from '@/components/layout/GlobalHeader';
 import { Navigation } from '@/components/layout/Navigation';
 import { NotificationsDrawer } from '@/components/notifications/NotificationsDrawer';
 import { HydrationGuard } from '@/components/layout/HydrationGuard';
+import { SettingsModal } from '@/components/settings/SettingsModal';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, isAuthLoading, initAuthListener } = useAuthStore();
@@ -57,6 +58,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       </main>
       {!isLoginRoute && <Navigation />}
       {!isLoginRoute && <NotificationsDrawer />}
+      <SettingsModal />
     </>
   );
 }
