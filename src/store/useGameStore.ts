@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { ALL_GAMES } from '@/data/mockGames';
+import { syncGamesToCloud } from '@/services/firestoreService';
+import { useAuthStore } from './useAuthStore';
 
 export interface Game {
   id: string;
@@ -35,6 +37,8 @@ export interface GameActions {
   toggleFavorite: (id: string) => void;
   setHydrated: () => void;
   setIsLoading: (loading: boolean) => void;
+  setGames: (games: Game[]) => void;
+  resetToDefault: () => void;
 }
 
 // Map mock games to our new strict schema
@@ -59,6 +63,14 @@ const initialGames: Game[] = ALL_GAMES.map((g) => ({
   releaseDate: g.releaseDate,
 }));
 
+// Helper to trigger background sync without breaking UI thread
+const syncToCloud = (games: Game[]) => {
+  const uid = useAuthStore.getState().user?.uid;
+  if (uid) {
+    syncGamesToCloud(uid, games);
+  }
+};
+
 export const useGameStore = create<GameState & GameActions>()(
   persist(
     (set) => ({
@@ -66,18 +78,28 @@ export const useGameStore = create<GameState & GameActions>()(
       isLoading: false,
       hasHydrated: false,
 
-      addGame: (game) => set((state) => ({ games: [...state.games, game] })),
+      addGame: (game) => set((state) => {
+        const newGames = [...state.games, game];
+        syncToCloud(newGames);
+        return { games: newGames };
+      }),
 
-      updateGameStatus: (id, status) => set((state) => ({
-        games: state.games.map((g) => g.id === id ? { ...g, status } : g)
-      })),
+      updateGameStatus: (id, status) => set((state) => {
+        const newGames = state.games.map((g) => g.id === id ? { ...g, status } : g);
+        syncToCloud(newGames);
+        return { games: newGames };
+      }),
 
-      toggleFavorite: (id) => set((state) => ({
-        games: state.games.map((g) => g.id === id ? { ...g, isFavorite: !g.isFavorite } : g)
-      })),
+      toggleFavorite: (id) => set((state) => {
+        const newGames = state.games.map((g) => g.id === id ? { ...g, isFavorite: !g.isFavorite } : g);
+        syncToCloud(newGames);
+        return { games: newGames };
+      }),
 
       setHydrated: () => set({ hasHydrated: true }),
       setIsLoading: (isLoading) => set({ isLoading }),
+      setGames: (games) => set({ games }),
+      resetToDefault: () => set({ games: initialGames }),
     }),
     {
       name: 'gamerbox-storage',
