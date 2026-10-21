@@ -154,13 +154,16 @@ export type DictionaryPath = string; // Using simple string typing for rapid imp
 
 export const getTranslation = (lang: Language, path: string): string => {
   const keys = path.split('.');
-  let current: any = dictionary[lang];
+  let current: Record<string, unknown> | string = dictionary[lang] as Record<string, unknown>;
+
   for (const key of keys) {
-    if (current[key] === undefined) {
+    if (typeof current === 'object' && current !== null && key in current) {
+      current = (current as Record<string, unknown>)[key] as Record<string, unknown> | string;
+    } else {
       console.warn(`Translation missing for key: ${path} in lang: ${lang}`);
       return path;
     }
-    current = current[key];
   }
-  return current;
+
+  return typeof current === 'string' ? current : path;
 };
