@@ -18,7 +18,7 @@ export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
     const variants = {
       default: 'bg-white/10 text-white border border-white/20',
       live: 'bg-neon-red/20 text-neon-red-bright border border-neon-red/30',
-      neon: 'bg-neon-red text-white shadow-neon',
+      neon: 'bg-neon-red text-real-white shadow-neon',
     };
 
     return (

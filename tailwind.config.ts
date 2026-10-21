@@ -9,15 +9,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        'obsidian-black': '#050505',
-        'obsidian-dark': '#12141D',
-        'neon-red': '#E50914',
-        'neon-red-bright': '#FF003C',
-        'mint-green': '#5EE6A8',
-        'surface-glass': 'rgba(255, 255, 255, 0.05)',
-        'surface-glass-hover': 'rgba(255, 255, 255, 0.1)',
-        'surface-border': 'rgba(255, 255, 255, 0.1)',
-        'text-dim': '#858A96',
+        'obsidian-black': 'var(--bg-app)',
+        'obsidian-dark': 'var(--bg-panel)',
+        'neon-red': 'var(--neon-red)',
+        'neon-red-bright': 'var(--neon-red-bright)',
+        'mint-green': 'var(--mint-green)',
+        'surface-glass': 'var(--bg-surface-glass)',
+        'surface-glass-hover': 'var(--bg-surface-glass-hover)',
+        'surface-border': 'var(--border-base)',
+        'text-dim': 'var(--text-secondary)',
+        'real-white': '#FFFFFF',
+        white: 'var(--tw-colors-white, #FFFFFF)',
       },
       fontFamily: {
         heading: ['var(--font-space-grotesk)', 'sans-serif'],

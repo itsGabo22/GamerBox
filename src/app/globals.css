@@ -2,9 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg-app: #050505;
+  --bg-panel: #12141D;
+  --text-primary: #FFFFFF;
+  --text-secondary: #858A96;
+  --border-base: rgba(255, 255, 255, 0.1);
+  --bg-surface-glass: rgba(255, 255, 255, 0.05);
+  --bg-surface-glass-hover: rgba(255, 255, 255, 0.1);
+  --neon-red: #E50914;
+  --neon-red-bright: #FF003C;
+  --mint-green: #5EE6A8;
+  --shadow-elevation: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  --tw-colors-white: #FFFFFF;
+}
+
+[data-theme='light'] {
+  --bg-app: #F5F6F8;
+  --bg-panel: #FFFFFF;
+  --text-primary: #111318;
+  --text-secondary: #555A66;
+  --border-base: #E1E3E8;
+  --bg-surface-glass: rgba(255, 255, 255, 0.75);
+  --bg-surface-glass-hover: rgba(255, 255, 255, 0.95);
+  --neon-red: #E50914;
+  --neon-red-bright: #FF003C;
+  --mint-green: #20B878;
+  --shadow-elevation: 0 8px 24px -4px rgba(17, 19, 24, 0.06), 0 2px 6px -1px rgba(17, 19, 24, 0.04);
+  --tw-colors-white: #111318;
+}
+
 @layer base {
   body {
-    @apply bg-obsidian-black text-white font-body;
+    @apply font-body;
+    background-color: var(--bg-app);
+    color: var(--text-primary);
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -14,10 +47,17 @@
 
 @layer utilities {
   .glass-panel {
-    @apply bg-surface-glass backdrop-blur-md border border-surface-border shadow-glass;
+    background-color: var(--bg-surface-glass);
+    border: 1px solid var(--border-base);
+    box-shadow: var(--shadow-elevation);
+    @apply backdrop-blur-md;
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   }
   .glass-panel-hover {
-    @apply hover:bg-surface-glass-hover transition-colors duration-300;
+    @apply transition-all duration-300;
+  }
+  .glass-panel-hover:hover {
+    background-color: var(--bg-surface-glass-hover);
   }
 }
 
