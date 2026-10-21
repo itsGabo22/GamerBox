@@ -30,19 +30,27 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const syncCloudData = async () => {
       if (user?.uid) {
         setIsFetchingCloud(true);
-        const cloudGames = await fetchGamesFromCloud(user.uid);
-        if (mounted) {
-          if (cloudGames) {
-            setGames(cloudGames);
-          } else {
-            // New user: upload default local games as their starting library
-            await syncGamesToCloud(user.uid, useGameStore.getState().games);
+        try {
+          const cloudGames = await fetchGamesFromCloud(user.uid);
+          if (mounted) {
+            if (cloudGames) {
+              setGames(cloudGames);
+            } else {
+              // New user: upload default local games as their starting library
+              await syncGamesToCloud(user.uid, useGameStore.getState().games);
+            }
           }
-          setIsFetchingCloud(false);
+        } finally {
+          if (mounted) {
+            setIsFetchingCloud(false);
+          }
         }
       } else if (user === null) {
         // Logged out, clear library to default
-        resetToDefault();
+        if (mounted) {
+          resetToDefault();
+          setIsFetchingCloud(false); // Ensure fetching is false when logged out
+        }
       }
     };
 
