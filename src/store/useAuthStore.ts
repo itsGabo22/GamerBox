@@ -1,12 +1,12 @@
 import { create } from 'zustand';
+import { FirebaseError } from 'firebase/app';
 import { auth, isFirebaseConfigured } from '@/lib/firebase';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
-  signOut,
-  FirebaseError
+  signOut
 } from 'firebase/auth';
 
 interface UserProfile {
@@ -30,7 +30,7 @@ interface AuthActions {
   clearError: () => void;
 }
 
-const mapFirebaseError = (error: any): string => {
+const mapFirebaseError = (error: unknown): string => {
   if (error instanceof FirebaseError) {
     switch (error.code) {
       case 'auth/invalid-credential':
@@ -50,7 +50,7 @@ const mapFirebaseError = (error: any): string => {
   return 'Ocurrió un error inesperado.';
 };
 
-export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
+export const useAuthStore = create<AuthState & AuthActions>((set) => ({
   user: null,
   isAuthLoading: true,
   authError: null,
