@@ -6,21 +6,23 @@ import { Home, Compass, LayoutList, Users, User } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useTranslation } from '@/i18n/useTranslation';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
 }
 
-const navItems = [
-  { icon: Home, label: 'Dashboard', href: '/' },
-  { icon: Compass, label: 'Discover', href: '/discover' },
-  { icon: LayoutList, label: 'Backlog', href: '/backlog' },
-  { icon: Users, label: 'Community', href: '/community' },
-  { icon: User, label: 'Profile', href: '/profile' },
-];
-
 export const Navigation = () => {
   const pathname = usePathname();
+  const { t } = useTranslation();
+
+  const navItems = [
+    { icon: Home, label: t('nav.home'), href: '/' },
+    { icon: Compass, label: t('nav.discover'), href: '/discover' },
+    { icon: LayoutList, label: t('nav.backlog'), href: '/backlog' },
+    { icon: Users, label: t('nav.community'), href: '/community' },
+    { icon: User, label: t('nav.profile'), href: '/profile' },
+  ];
 
   // Hide on game detail routes to provide immersive full-screen experience
   if (pathname.startsWith('/game/')) return null;

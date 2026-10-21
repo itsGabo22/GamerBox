@@ -40,7 +40,8 @@ const FALLBACK_RECOMMENDATIONS: AiRecommendation[] = [
 
 export const getOracleRecommendations = async (
   favorites: string[],
-  completed: string[]
+  completed: string[],
+  language: string = 'es'
 ): Promise<AiRecommendation[]> => {
   const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
@@ -51,7 +52,7 @@ export const getOracleRecommendations = async (
     console.log(`🤖 [GamerBox AI] API Key verificada. Inicia con: ${apiKey.substring(0, 5)}...`);
   }
 
-  const prompt = `You are the GamerBox Oracle. Analyze these favorite games: [${favorites.join(', ')}], and completed games: [${completed.join(', ')}]. Recommend exactly 3 new games. Respond ONLY with a valid JSON array of objects. Do not use Markdown formatting like \`\`\`json. Each object must have: \`id\` (uuid), \`title\`, \`genre\`, \`platform\`, \`coverUrl\` (use a generic placeholder URL like 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=500&q=80' if unknown), \`matchPercentage\` (integer between 85 and 99), and \`synopsis\`.`;
+  const prompt = `You are the GamerBox Oracle. Analyze these favorite games: [${favorites.join(', ')}], and completed games: [${completed.join(', ')}]. Recommend exactly 3 new games. Respond ONLY with a valid JSON array of objects. Do not use Markdown formatting like \`\`\`json. Each object must have: \`id\` (uuid), \`title\`, \`genre\`, \`platform\`, \`coverUrl\` (use a generic placeholder URL like 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=500&q=80' if unknown), \`matchPercentage\` (integer between 85 and 99), and \`synopsis\` (WRITE THE SYNOPSIS IN ${language === 'es' ? 'SPANISH' : 'ENGLISH'}).`;
 
   try {
     console.log('🤖 [GamerBox AI] Iniciando solicitud a Gemini API...');

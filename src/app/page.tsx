@@ -3,9 +3,12 @@
 import { Hero } from '@/components/dashboard/Hero';
 import { GameCard } from '@/components/dashboard/GameCard';
 import { useGameStore } from '@/store/useGameStore';
+import { useTranslation } from '@/i18n/useTranslation';
 
 export default function Home() {
   const games = useGameStore(state => state.games);
+  const { t } = useTranslation();
+
   const yourGames = games.slice(0, 4);
   const trendingGames = games.slice(4, 9);
 
@@ -15,9 +18,9 @@ export default function Home() {
 
       <section className="px-4 md:px-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-heading font-bold">Your Games</h2>
+          <h2 className="text-2xl font-heading font-bold">{t('home.yourGames')}</h2>
           <button className="text-neon-red hover:text-neon-red-bright font-mono text-sm tracking-wider uppercase transition-colors">
-            View All
+            {t('home.viewAll')}
           </button>
         </div>
         
@@ -33,9 +36,9 @@ export default function Home() {
 
       <section className="px-4 md:px-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-heading font-bold">Trending This Week</h2>
+          <h2 className="text-2xl font-heading font-bold">{t('home.trending')}</h2>
           <button className="text-neon-red hover:text-neon-red-bright font-mono text-sm tracking-wider uppercase transition-colors">
-            Explore
+            {t('home.explore')}
           </button>
         </div>
         

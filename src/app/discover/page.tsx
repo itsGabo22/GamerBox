@@ -9,17 +9,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/store/useGameStore';
 import { getOracleRecommendations, AiRecommendation } from '@/services/aiService';
 import { Button } from '@/components/ui/Button';
+import { useTranslation } from '@/i18n/useTranslation';
 
 const GENRES = [
-  { id: 'all', label: 'Tendencias', icon: TrendingUp },
+  { id: 'all', label: 'TODOS', icon: TrendingUp },
   { id: 'rpg', label: 'RPG', icon: Swords },
-  { id: 'action', label: 'Acción', icon: Gamepad2 },
-  { id: 'strategy', label: 'Estrategia', icon: NavigationIcon },
-  { id: 'racing', label: 'Carreras', icon: Sparkles },
+  { id: 'action', label: 'ACTION', icon: Gamepad2 },
+  { id: 'strategy', label: 'STRATEGY', icon: NavigationIcon },
+  { id: 'racing', label: 'RACING', icon: Sparkles },
 ];
 
 export default function DiscoverPage() {
   const games = useGameStore(state => state.games);
+  const { t, language } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeGenre, setActiveGenre] = useState('all');
 
@@ -32,7 +34,7 @@ export default function DiscoverPage() {
       const favorites = games.filter(g => g.isFavorite).map(g => g.title);
       const completed = games.filter(g => g.status === 'COMPLETED').map(g => g.title);
 
-      const results = await getOracleRecommendations(favorites, completed);
+      const results = await getOracleRecommendations(favorites, completed, language);
       setOracleResults(results);
     } finally {
       setIsOracleLoading(false);
@@ -71,10 +73,10 @@ export default function DiscoverPage() {
       {/* Header */}
       <header className="mb-6">
         <h1 className="text-3xl font-heading font-bold uppercase tracking-tight text-white mb-1">
-          DESCUBRIR
+          {t('discover.title')}
         </h1>
         <p className="font-body text-sm text-text-dim">
-          Encuentra tu próximo juego.
+          {t('discover.subtitle')}
         </p>
       </header>
 
@@ -87,7 +89,7 @@ export default function DiscoverPage() {
           type="search"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Buscar juegos..."
+          placeholder={t('common.searchPlaceholder')}
           className="w-full h-14 pl-12 pr-4 bg-surface-glass backdrop-blur-xl border border-surface-border rounded-2xl text-white placeholder:text-text-dim focus:outline-none focus:border-neon-red focus:ring-1 focus:ring-neon-red transition-all shadow-glass"
         />
       </div>
@@ -108,7 +110,7 @@ export default function DiscoverPage() {
                 onClick={handleOracleClick}
               >
                 <Sparkles size={20} />
-                ANALIZAR MI PERFIL CON IA
+                {t('discover.analyzeProfile')}
               </Button>
             </motion.div>
           )}
@@ -128,7 +130,7 @@ export default function DiscoverPage() {
               />
               <Sparkles size={24} className="text-neon-red animate-pulse relative z-10" />
               <p className="font-mono text-[10px] uppercase tracking-widest text-text-dim relative z-10">
-                Sincronizando red neuronal con tu biblioteca...
+                {t('discover.analyzing')}
               </p>
             </motion.div>
           )}
@@ -149,7 +151,7 @@ export default function DiscoverPage() {
                   onClick={() => setOracleResults(null)}
                   className="font-mono text-[10px] text-text-dim uppercase underline"
                 >
-                  Reset
+                  {t('discover.reset')}
                 </button>
               </div>
 
@@ -187,7 +189,7 @@ export default function DiscoverPage() {
       {searchQuery === '' && activeGenre === 'all' && (
         <section className="mb-8">
           <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-text-dim mb-4 px-2">
-            Lanzamientos
+            {t('discover.releases')}
           </h2>
           <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:-mx-8 md:px-8">
             {releases.map(game => (
@@ -233,7 +235,7 @@ export default function DiscoverPage() {
       {searchQuery === '' && (
         <section className="mb-8">
           <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-text-dim mb-4 px-2">
-            Explorar Géneros
+            {t('discover.genres')}
           </h2>
           <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4 snap-x">
             {GENRES.map(genre => {
@@ -262,10 +264,10 @@ export default function DiscoverPage() {
       <section>
         <div className="flex items-center justify-between mb-4 px-2">
           <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-text-dim">
-            {searchQuery !== '' ? 'Resultados' : 'Podría Gustarte'}
+            {searchQuery !== '' ? t('common.results') : t('discover.mightLike')}
           </h2>
           {filteredGames.length > 0 && (
-            <span className="font-mono text-[10px] text-text-dim">{filteredGames.length} encontrados</span>
+            <span className="font-mono text-[10px] text-text-dim">{filteredGames.length} {t('common.found')}</span>
           )}
         </div>
 
@@ -292,9 +294,9 @@ export default function DiscoverPage() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-surface-border rounded-2xl bg-surface-glass mt-2"
           >
-            <p className="text-white font-heading font-bold text-lg mb-2">NO ENCONTRAMOS ESE JUEGO</p>
+            <p className="text-white font-heading font-bold text-lg mb-2">{t('discover.noResults')}</p>
             <p className="text-text-dim font-body text-sm max-w-[250px]">
-              Prueba con otro título, género o plataforma.
+              {t('discover.noResultsSub')}
             </p>
           </motion.div>
         )}
