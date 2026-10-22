@@ -14,6 +14,8 @@ interface UserProfile {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
+  bio?: string;
+  title?: string;
 }
 
 interface AuthState {
@@ -28,11 +30,12 @@ interface AuthActions {
   signUpWithEmail: (email: string, pass: string, username: string) => Promise<boolean>;
   logout: () => Promise<void>;
   clearError: () => void;
+  updateUserProfile: (data: Partial<UserProfile>) => Promise<void>;
 }
 
 const mapFirebaseError = (error: unknown): string => {
   if (error instanceof Error && error.message === 'AUTH_TIMEOUT') {
-    return 'Tiempo de espera agotado. Inténtalo de nuevo.';
+    return 'Error de conexión con el servidor de autenticación. Verifica tu internet.';
   }
   if (error instanceof FirebaseError) {
     switch (error.code) {
@@ -118,16 +121,12 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   signInWithEmail: async (email, pass) => {
     set({ authError: null });
 
-    const fallbackLogin = () => {
-      console.warn('🔐 [GamerBox Auth] Fallback Mode: Fake Sign In due to network/timeout');
+    if (!isFirebaseConfigured) {
+      console.warn('🔐 [GamerBox Auth] Demo Mode: Fake Sign In due to missing config');
       const demoUser = { uid: 'demo-123', email, displayName: email.split('@')[0], photoURL: null };
       localStorage.setItem('demo_user', JSON.stringify(demoUser));
       set({ user: demoUser, isAuthLoading: false, authError: null });
       return true;
-    };
-
-    if (!isFirebaseConfigured) {
-      return fallbackLogin();
     }
 
     try {
@@ -141,17 +140,6 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       if (typeof window !== 'undefined') localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
       return true;
     } catch (error: unknown) {
-      const e = error as Record<string, unknown>;
-      if (error instanceof Error) {
-        if (
-          error.message === 'AUTH_TIMEOUT' ||
-          e.code === 'auth/network-request-failed' ||
-          e.code === 'auth/api-key-not-valid' ||
-          e.code === 'auth/internal-error'
-        ) {
-          return fallbackLogin();
-        }
-      }
       set({ authError: mapFirebaseError(error) });
       return false;
     }
@@ -160,16 +148,12 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   signUpWithEmail: async (email, pass, username) => {
     set({ authError: null });
 
-    const fallbackSignUp = () => {
-      console.warn('🔐 [GamerBox Auth] Fallback Mode: Fake Sign Up due to network/timeout');
+    if (!isFirebaseConfigured) {
+      console.warn('🔐 [GamerBox Auth] Demo Mode: Fake Sign Up due to network/timeout');
       const demoUser = { uid: 'demo-' + Date.now(), email, displayName: username, photoURL: null };
       localStorage.setItem('demo_user', JSON.stringify(demoUser));
       set({ user: demoUser, isAuthLoading: false, authError: null });
       return true;
-    };
-
-    if (!isFirebaseConfigured) {
-      return fallbackSignUp();
     }
 
     try {
@@ -188,17 +172,6 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       set({ user: newUser });
       return true;
     } catch (error: unknown) {
-      const e = error as Record<string, unknown>;
-      if (error instanceof Error) {
-        if (
-          error.message === 'AUTH_TIMEOUT' ||
-          e.code === 'auth/network-request-failed' ||
-          e.code === 'auth/api-key-not-valid' ||
-          e.code === 'auth/internal-error'
-        ) {
-          return fallbackSignUp();
-        }
-      }
       set({ authError: mapFirebaseError(error) });
       return false;
     }
@@ -219,6 +192,27 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       set({ user: null });
     } catch (error) {
       console.error('Logout error', error);
+    }
+  },
+
+  updateUserProfile: async (data: Partial<UserProfile>) => {
+    const user = get().user;
+    if (!user) return;
+
+    const newProfile = { ...user, ...data };
+    set({ user: newProfile });
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('gamerbox_cached_user', JSON.stringify(newProfile));
+    }
+
+    if (isFirebaseConfigured && auth.currentUser) {
+      if (data.displayName !== undefined || data.photoURL !== undefined) {
+        updateProfile(auth.currentUser, {
+          displayName: data.displayName ?? auth.currentUser.displayName,
+          photoURL: data.photoURL ?? auth.currentUser.photoURL
+        }).catch(console.error);
+      }
     }
   },
 
