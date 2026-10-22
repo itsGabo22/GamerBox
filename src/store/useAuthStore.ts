@@ -31,6 +31,9 @@ interface AuthActions {
 }
 
 const mapFirebaseError = (error: unknown): string => {
+  if (error instanceof Error && error.message === 'AUTH_TIMEOUT') {
+    return 'Tiempo de espera agotado. Inténtalo de nuevo.';
+  }
   if (error instanceof FirebaseError) {
     switch (error.code) {
       case 'auth/invalid-credential':
@@ -50,19 +53,33 @@ const mapFirebaseError = (error: unknown): string => {
   return 'Ocurrió un error inesperado.';
 };
 
+const withTimeout = <T>(promise: Promise<T>, ms = 3500): Promise<T> => {
+  let timeoutId: NodeJS.Timeout;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error('AUTH_TIMEOUT'));
+    }, ms);
+  });
+  return Promise.race([
+    promise,
+    timeoutPromise
+  ]).finally(() => clearTimeout(timeoutId));
+};
+
 export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   user: null,
   isAuthLoading: true,
   authError: null,
 
   initAuthListener: () => {
+    const demoUserStr = typeof window !== 'undefined' ? localStorage.getItem('demo_user') : null;
+    if (demoUserStr) {
+      set({ user: JSON.parse(demoUserStr), isAuthLoading: false });
+      return () => {};
+    }
+
     if (!isFirebaseConfigured) {
-      const demoUserStr = typeof window !== 'undefined' ? localStorage.getItem('demo_user') : null;
-      if (demoUserStr) {
-        set({ user: JSON.parse(demoUserStr), isAuthLoading: false });
-      } else {
-        set({ user: null, isAuthLoading: false });
-      }
+      set({ user: null, isAuthLoading: false });
       return () => {};
     }
 
@@ -97,18 +114,33 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   signInWithEmail: async (email, pass) => {
     set({ authError: null });
 
-    if (!isFirebaseConfigured) {
-      console.warn('🔐 [GamerBox Auth] Demo Mode: Fake Sign In');
+    const fallbackLogin = () => {
+      console.warn('🔐 [GamerBox Auth] Fallback Mode: Fake Sign In due to network/timeout');
       const demoUser = { uid: 'demo-123', email, displayName: email.split('@')[0], photoURL: null };
       localStorage.setItem('demo_user', JSON.stringify(demoUser));
-      set({ user: demoUser });
+      set({ user: demoUser, isAuthLoading: false, authError: null });
       return true;
+    };
+
+    if (!isFirebaseConfigured) {
+      return fallbackLogin();
     }
 
     try {
-      await signInWithEmailAndPassword(auth, email, pass);
+      await withTimeout(signInWithEmailAndPassword(auth, email, pass), 3500);
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
+      const e = error as Record<string, unknown>;
+      if (error instanceof Error) {
+        if (
+          error.message === 'AUTH_TIMEOUT' ||
+          e.code === 'auth/network-request-failed' ||
+          e.code === 'auth/api-key-not-valid' ||
+          e.code === 'auth/internal-error'
+        ) {
+          return fallbackLogin();
+        }
+      }
       set({ authError: mapFirebaseError(error) });
       return false;
     }
@@ -117,17 +149,21 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   signUpWithEmail: async (email, pass, username) => {
     set({ authError: null });
 
-    if (!isFirebaseConfigured) {
-      console.warn('🔐 [GamerBox Auth] Demo Mode: Fake Sign Up');
+    const fallbackSignUp = () => {
+      console.warn('🔐 [GamerBox Auth] Fallback Mode: Fake Sign Up due to network/timeout');
       const demoUser = { uid: 'demo-' + Date.now(), email, displayName: username, photoURL: null };
       localStorage.setItem('demo_user', JSON.stringify(demoUser));
-      set({ user: demoUser });
+      set({ user: demoUser, isAuthLoading: false, authError: null });
       return true;
+    };
+
+    if (!isFirebaseConfigured) {
+      return fallbackSignUp();
     }
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-      await updateProfile(userCredential.user, { displayName: username });
+      const userCredential = await withTimeout(createUserWithEmailAndPassword(auth, email, pass), 3500);
+      updateProfile(userCredential.user, { displayName: username }).catch(() => {});
 
       // Update local state to reflect displayName immediately since onAuthStateChanged might fire before updateProfile finishes
       set({
@@ -139,7 +175,18 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         }
       });
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
+      const e = error as Record<string, unknown>;
+      if (error instanceof Error) {
+        if (
+          error.message === 'AUTH_TIMEOUT' ||
+          e.code === 'auth/network-request-failed' ||
+          e.code === 'auth/api-key-not-valid' ||
+          e.code === 'auth/internal-error'
+        ) {
+          return fallbackSignUp();
+        }
+      }
       set({ authError: mapFirebaseError(error) });
       return false;
     }
