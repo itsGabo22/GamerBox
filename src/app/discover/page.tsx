@@ -21,12 +21,17 @@ const GENRES = [
 
 export default function DiscoverPage() {
   const games = useGameStore(state => state.games);
+  const addGame = useGameStore(state => state.addGame);
   const { t, language } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeGenre, setActiveGenre] = useState('all');
 
   const [isOracleLoading, setIsOracleLoading] = useState(false);
   const [oracleResults, setOracleResults] = useState<AiRecommendation[] | null>(null);
+
+  // Custom Game Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newGame, setNewGame] = useState({ title: '', platform: 'PC', genre: 'RPG', status: 'PENDING' });
 
   const handleOracleClick = async () => {
     setIsOracleLoading(true);
@@ -39,6 +44,38 @@ export default function DiscoverPage() {
     } finally {
       setIsOracleLoading(false);
     }
+  };
+
+  const handleAddToBacklog = (rec: AiRecommendation) => {
+    addGame({
+      id: rec.id,
+      title: rec.title,
+      coverUrl: rec.coverUrl,
+      genre: rec.genre,
+      platform: rec.platform,
+      status: 'PENDING',
+      isFavorite: false,
+      timePlayed: '0 hrs',
+      rating: 0
+    });
+    setOracleResults(prev => prev ? prev.filter(r => r.id !== rec.id) : null);
+  };
+
+  const submitNewGame = (e: React.FormEvent) => {
+    e.preventDefault();
+    addGame({
+      id: `custom-${Date.now()}`,
+      title: newGame.title,
+      coverUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1000',
+      genre: newGame.genre,
+      platform: newGame.platform,
+      status: newGame.status,
+      isFavorite: false,
+      timePlayed: '0 hrs',
+      rating: 0
+    });
+    setShowAddModal(false);
+    setNewGame({ title: '', platform: 'PC', genre: 'RPG', status: 'PENDING' });
   };
 
   // Filter games based on search and selected genre
@@ -147,17 +184,25 @@ export default function DiscoverPage() {
                   <Sparkles size={12} />
                   GamerBox AI Oracle
                 </h2>
-                <button
-                  onClick={() => setOracleResults(null)}
-                  className="font-mono text-[10px] text-text-dim uppercase underline"
-                >
-                  {t('discover.reset')}
-                </button>
+                <div className="flex gap-4">
+                  <button
+                    onClick={handleOracleClick}
+                    className="font-mono text-[10px] text-text-dim uppercase underline hover:text-white"
+                  >
+                    🔄 Recalibrar
+                  </button>
+                  <button
+                    onClick={() => setOracleResults(null)}
+                    className="font-mono text-[10px] text-text-dim uppercase underline hover:text-neon-red"
+                  >
+                    {t('discover.reset')}
+                  </button>
+                </div>
               </div>
 
               <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:-mx-8 md:px-8">
                 {oracleResults.map((game) => (
-                  <div key={game.id} className="snap-start shrink-0 w-[240px] md:w-[280px] relative">
+                  <div key={game.id} className="snap-start shrink-0 w-[240px] md:w-[280px] relative flex flex-col gap-2">
                     <GameCard game={{
                       id: game.id,
                       title: game.title,
@@ -168,15 +213,25 @@ export default function DiscoverPage() {
                       timePlayed: '0 hrs',
                       platform: game.platform,
                       genre: game.genre,
-                      matchPercentage: game.matchPercentage,
                     }} />
                     <div className="absolute -top-3 -right-2 z-10">
                       <div className="bg-obsidian-black px-3 py-1.5 rounded-lg border-2 border-mint-green shadow-[0_0_15px_rgba(94,230,168,0.4)]">
                         <p className="font-mono text-xs font-bold text-mint-green tracking-widest uppercase whitespace-nowrap drop-shadow-md">
-                          {game.matchPercentage}% AI MATCH
+                          {game.matchScore}% AI MATCH
                         </p>
                       </div>
                     </div>
+                    <div className="bg-surface-glass border border-surface-border rounded-xl p-3 mt-1 shadow-glass">
+                      <p className="font-body text-xs text-white/80 italic leading-relaxed">&quot;{game.reason}&quot;</p>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="w-full mt-1 border-mint-green/30 text-mint-green hover:bg-mint-green/10"
+                      onClick={() => handleAddToBacklog(game)}
+                    >
+                      + Añadir al Backlog
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -301,6 +356,43 @@ export default function DiscoverPage() {
           </motion.div>
         )}
       </section>
+      {/* Custom Game Button */}
+      <div className="flex justify-center mt-6">
+        <Button variant="ghost" onClick={() => setShowAddModal(true)} className="border border-surface-border">
+          + Registrar Juego Nuevo
+        </Button>
+      </div>
+
+      {/* Add Game Modal */}
+      <AnimatePresence>
+        {showAddModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-obsidian-black/80 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
+            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} className="relative bg-obsidian-dark border border-surface-border p-6 rounded-3xl w-full max-w-sm shadow-glass">
+              <h3 className="font-heading font-bold text-xl text-white mb-4 uppercase">Nuevo Juego</h3>
+              <form onSubmit={submitNewGame} className="flex flex-col gap-4">
+                <input required placeholder="Título" value={newGame.title} onChange={e => setNewGame({...newGame, title: e.target.value})} className="w-full h-12 px-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm" />
+                <div className="grid grid-cols-2 gap-4">
+                  <select value={newGame.platform} onChange={e => setNewGame({...newGame, platform: e.target.value})} className="h-12 px-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm">
+                    <option value="PC">PC</option>
+                    <option value="PS5">PS5</option>
+                    <option value="Switch">Switch</option>
+                    <option value="Xbox">Xbox</option>
+                  </select>
+                  <select value={newGame.genre} onChange={e => setNewGame({...newGame, genre: e.target.value})} className="h-12 px-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm">
+                    <option value="RPG">RPG</option>
+                    <option value="ACTION">ACTION</option>
+                    <option value="SHOOTER">SHOOTER</option>
+                    <option value="RACING">RACING</option>
+                  </select>
+                </div>
+                <Button type="submit" variant="neon" className="w-full mt-2">Guardar en Backlog</Button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

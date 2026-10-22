@@ -7,8 +7,11 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { Button } from '@/components/ui/Button';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 
+import { useRouter } from 'next/navigation';
+
 export default function LoginPage() {
   const { signInWithEmail, signUpWithEmail, authError, clearError } = useAuthStore();
+  const router = useRouter();
   const [isRegister, setIsRegister] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -28,19 +31,22 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    let success = false;
-    if (isRegister) {
-      if (formData.username.trim() === '') {
-        useAuthStore.setState({ authError: 'El Gamertag es requerido.' });
-        setIsLoading(false);
-        return;
+    try {
+      let success = false;
+      if (isRegister) {
+        if (formData.username.trim() === '') {
+          useAuthStore.setState({ authError: 'El Gamertag es requerido.' });
+          return;
+        }
+        success = await signUpWithEmail(formData.email, formData.password, formData.username);
+      } else {
+        success = await signInWithEmail(formData.email, formData.password);
       }
-      success = await signUpWithEmail(formData.email, formData.password, formData.username);
-    } else {
-      success = await signInWithEmail(formData.email, formData.password);
-    }
 
-    if (!success) {
+      if (success) {
+        router.replace('/');
+      }
+    } finally {
       setIsLoading(false);
     }
   };
