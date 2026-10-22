@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { FirebaseError } from 'firebase/app';
 import { auth, isFirebaseConfigured } from '@/lib/firebase';
+import { syncUserProfileToCloud } from '@/services/firestoreService';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -213,6 +214,12 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
           photoURL: data.photoURL ?? auth.currentUser.photoURL
         }).catch(console.error);
       }
+
+      // Sync extra profile fields to Firestore
+      syncUserProfileToCloud(auth.currentUser.uid, {
+        bio: newProfile.bio,
+        title: newProfile.title
+      }).catch(console.error);
     }
   },
 
