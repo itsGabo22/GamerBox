@@ -72,14 +72,18 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   authError: null,
 
   initAuthListener: () => {
-    const demoUserStr = typeof window !== 'undefined' ? localStorage.getItem('demo_user') : null;
-    if (demoUserStr) {
-      set({ user: JSON.parse(demoUserStr), isAuthLoading: false });
-      return () => {};
+    const cachedUser = typeof window !== 'undefined' ? localStorage.getItem('gamerbox_cached_user') : null;
+    if (cachedUser) {
+      set({ user: JSON.parse(cachedUser), isAuthLoading: false });
     }
 
     if (!isFirebaseConfigured) {
-      set({ user: null, isAuthLoading: false });
+      const demoUserStr = typeof window !== 'undefined' ? localStorage.getItem('demo_user') : null;
+      if (demoUserStr) {
+        set({ user: JSON.parse(demoUserStr), isAuthLoading: false });
+      } else if (!cachedUser) {
+        set({ user: null, isAuthLoading: false });
+      }
       return () => {};
     }
 
@@ -94,16 +98,16 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       clearTimeout(watchdog);
 
       if (firebaseUser) {
-        set({
-          user: {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL
-          },
-          isAuthLoading: false
-        });
+        const newUser = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+          photoURL: firebaseUser.photoURL
+        };
+        if (typeof window !== 'undefined') localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
+        set({ user: newUser, isAuthLoading: false });
       } else {
+        if (typeof window !== 'undefined') localStorage.removeItem('gamerbox_cached_user');
         set({ user: null, isAuthLoading: false });
       }
     });
@@ -127,7 +131,14 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
     }
 
     try {
-      await withTimeout(signInWithEmailAndPassword(auth, email, pass), 3500);
+      const userCredential = await withTimeout(signInWithEmailAndPassword(auth, email, pass), 3500);
+      const newUser = {
+        uid: userCredential.user.uid,
+        email: userCredential.user.email,
+        displayName: userCredential.user.displayName,
+        photoURL: userCredential.user.photoURL
+      };
+      if (typeof window !== 'undefined') localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
       return true;
     } catch (error: unknown) {
       const e = error as Record<string, unknown>;
@@ -166,14 +177,15 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       updateProfile(userCredential.user, { displayName: username }).catch(() => {});
 
       // Update local state to reflect displayName immediately since onAuthStateChanged might fire before updateProfile finishes
-      set({
-        user: {
-          uid: userCredential.user.uid,
-          email: userCredential.user.email,
-          displayName: username,
-          photoURL: userCredential.user.photoURL
-        }
-      });
+      const newUser = {
+        uid: userCredential.user.uid,
+        email: userCredential.user.email,
+        displayName: username,
+        photoURL: userCredential.user.photoURL
+      };
+      if (typeof window !== 'undefined') localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
+
+      set({ user: newUser });
       return true;
     } catch (error: unknown) {
       const e = error as Record<string, unknown>;
@@ -193,6 +205,8 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   },
 
   logout: async () => {
+    if (typeof window !== 'undefined') localStorage.removeItem('gamerbox_cached_user');
+
     if (!isFirebaseConfigured) {
       console.warn('🔐 [GamerBox Auth] Demo Mode: Fake Logout');
       localStorage.removeItem('demo_user');

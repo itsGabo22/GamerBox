@@ -16,7 +16,7 @@ import LoginPage from '@/app/login/page';
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, isAuthLoading, initAuthListener } = useAuthStore();
   const { setGames, resetToDefault } = useGameStore();
-  const [isFetchingCloud, setIsFetchingCloud] = React.useState(false);
+  const [forceUnlocked, setForceUnlocked] = React.useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -30,7 +30,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const syncCloudData = async () => {
       if (user?.uid) {
-        setIsFetchingCloud(true);
         // Do not block UI thread on Firestore. Let it sync in background.
         fetchGamesFromCloud(user.uid).then(async (cloudGames) => {
           if (mounted) {
@@ -43,14 +42,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           }
         }).catch(err => {
           console.warn('Firestore background sync warning:', err);
-        }).finally(() => {
-          if (mounted) setIsFetchingCloud(false);
         });
       } else if (user === null) {
         // Logged out, clear library to default
         if (mounted) {
           resetToDefault();
-          setIsFetchingCloud(false);
         }
       }
     };
@@ -62,18 +58,25 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return () => { mounted = false; };
   }, [user, user?.uid, isAuthLoading, setGames, resetToDefault]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setForceUnlocked(true);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
   const normalizedPath = (pathname || '/').replace(/\/+$/, '') || '/';
   const isLoginRoute = normalizedPath === '/login' || normalizedPath.endsWith('/login');
 
   useEffect(() => {
-    if (!isAuthLoading && !isFetchingCloud) {
+    if (!isAuthLoading) {
       if (user && isLoginRoute) {
         router.replace('/');
       }
     }
-  }, [user, isAuthLoading, isFetchingCloud, isLoginRoute, router]);
+  }, [user, isAuthLoading, isLoginRoute, router]);
 
-  const showLoading = isAuthLoading || isFetchingCloud;
+  const showLoading = !forceUnlocked && isAuthLoading && !user;
 
   return (
     <>
