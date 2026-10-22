@@ -50,7 +50,7 @@ const mapFirebaseError = (error: unknown): string => {
   return 'Ocurrió un error inesperado.';
 };
 
-export const useAuthStore = create<AuthState & AuthActions>((set) => ({
+export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   user: null,
   isAuthLoading: true,
   authError: null,
@@ -66,7 +66,16 @@ export const useAuthStore = create<AuthState & AuthActions>((set) => ({
       return () => {};
     }
 
+    const watchdog = setTimeout(() => {
+      if (get().isAuthLoading) {
+        console.warn('🔐 [GamerBox Auth] Watchdog unlocked UI');
+        set({ isAuthLoading: false });
+      }
+    }, 2000);
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      clearTimeout(watchdog);
+
       if (firebaseUser) {
         set({
           user: {

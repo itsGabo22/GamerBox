@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeAuth, browserLocalPersistence, getAuth, Auth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -36,5 +36,19 @@ const safeConfig = isFirebaseConfigured ? firebaseConfig : {
 };
 
 const app = getApps().length === 0 ? initializeApp(safeConfig) : getApp();
-export const auth = getAuth(app);
+
+let authInstance: Auth;
+if (typeof window !== 'undefined') {
+  try {
+    authInstance = initializeAuth(app, {
+      persistence: browserLocalPersistence,
+    });
+  } catch {
+    authInstance = getAuth(app);
+  }
+} else {
+  authInstance = getAuth(app);
+}
+
+export const auth = authInstance;
 export const db = getFirestore(app);
