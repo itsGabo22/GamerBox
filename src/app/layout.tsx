@@ -49,7 +49,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} ${spaceMono.variable}`}>
+    <html lang="es" className={`${inter.variable} ${spaceGrotesk.variable} ${spaceMono.variable}`} suppressHydrationWarning>
       <body className="antialiased min-h-screen flex flex-col bg-obsidian-black text-white selection:bg-neon-red/30 overscroll-none">
         <NotificationProvider>
           <div className="w-full max-w-md mx-auto min-h-screen relative flex flex-col bg-obsidian-dark/20 border-x border-white/5 shadow-2xl">

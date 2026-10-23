@@ -122,25 +122,65 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   signInWithEmail: async (email, pass) => {
     set({ authError: null });
 
+    const handleFallback = () => {
+      if (typeof window !== 'undefined') {
+        const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
+        if (vaultStr) {
+          const vault = JSON.parse(vaultStr);
+          const account = vault[email.toLowerCase()];
+          if (account) {
+            if (account.passwordHash === pass) {
+              set({ user: account, isAuthLoading: false });
+              return true;
+            } else {
+              set({ authError: 'Contraseña incorrecta.' });
+              return false;
+            }
+          }
+        }
+      }
+      set({ authError: 'No existe una cuenta con este correo. Regístrate primero en Crear Cuenta.' });
+      return false;
+    };
+
     if (!isFirebaseConfigured) {
-      console.warn('🔐 [GamerBox Auth] Demo Mode: Fake Sign In due to missing config');
-      const demoUser = { uid: 'demo-123', email, displayName: email.split('@')[0], photoURL: null };
-      localStorage.setItem('demo_user', JSON.stringify(demoUser));
-      set({ user: demoUser, isAuthLoading: false, authError: null });
-      return true;
+      console.warn('🔐 [GamerBox Auth] Demo Mode: Fake Sign In using Vault');
+      return handleFallback();
     }
 
     try {
-      const userCredential = await withTimeout(signInWithEmailAndPassword(auth, email, pass), 3500);
+      const userCredential = await withTimeout(signInWithEmailAndPassword(auth, email, pass), 5000);
       const newUser = {
         uid: userCredential.user.uid,
         email: userCredential.user.email,
         displayName: userCredential.user.displayName,
         photoURL: userCredential.user.photoURL
       };
-      if (typeof window !== 'undefined') localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
+        const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
+        const vault = vaultStr ? JSON.parse(vaultStr) : {};
+        vault[email.toLowerCase()] = { ...newUser, passwordHash: pass };
+        localStorage.setItem('gamerbox_accounts_vault', JSON.stringify(vault));
+      }
+
+      set({ user: newUser, isAuthLoading: false, authError: null });
       return true;
     } catch (error: unknown) {
+      const e = error as Record<string, unknown>;
+      if (error instanceof Error) {
+        if (
+          error.message === 'AUTH_TIMEOUT' ||
+          e.code === 'auth/network-request-failed' ||
+          e.code === 'auth/configuration-not-found' ||
+          e.code === 'auth/operation-not-allowed' ||
+          e.code === 'auth/internal-error'
+        ) {
+          return handleFallback();
+        }
+      }
+
       set({ authError: mapFirebaseError(error) });
       return false;
     }
@@ -149,30 +189,94 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   signUpWithEmail: async (email, pass, username) => {
     set({ authError: null });
 
-    if (!isFirebaseConfigured) {
-      console.warn('🔐 [GamerBox Auth] Demo Mode: Fake Sign Up due to network/timeout');
-      const demoUser = { uid: 'demo-' + Date.now(), email, displayName: username, photoURL: null };
-      localStorage.setItem('demo_user', JSON.stringify(demoUser));
-      set({ user: demoUser, isAuthLoading: false, authError: null });
+    if (username.trim().length < 3) {
+      set({ authError: 'El Gamertag debe tener al menos 3 caracteres.' });
+      return false;
+    }
+    if (pass.length < 6) {
+      set({ authError: 'La contraseña debe tener al menos 6 caracteres.' });
+      return false;
+    }
+
+    const emailLower = email.toLowerCase();
+
+    if (typeof window !== 'undefined') {
+      const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
+      if (vaultStr) {
+        const vault = JSON.parse(vaultStr);
+        if (vault[emailLower]) {
+           if (vault[emailLower].passwordHash === pass) {
+               set({ user: vault[emailLower], isAuthLoading: false });
+               return true;
+           } else {
+               set({ authError: 'Este correo ya está registrado. Usa Iniciar Sesión.' });
+               return false;
+           }
+        }
+      }
+    }
+
+    const handleFallbackCreate = () => {
+      console.warn('🔐 [GamerBox Auth] Fallback Mode: Fake Sign Up due to network/timeout');
+      const newUser = { uid: 'local-' + Date.now(), email, displayName: username, photoURL: null };
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
+        const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
+        const vault = vaultStr ? JSON.parse(vaultStr) : {};
+        vault[emailLower] = { ...newUser, passwordHash: pass };
+        localStorage.setItem('gamerbox_accounts_vault', JSON.stringify(vault));
+      }
+
+      set({ user: newUser, isAuthLoading: false, authError: null });
       return true;
+    };
+
+    if (!isFirebaseConfigured) {
+      return handleFallbackCreate();
     }
 
     try {
-      const userCredential = await withTimeout(createUserWithEmailAndPassword(auth, email, pass), 3500);
+      const userCredential = await withTimeout(createUserWithEmailAndPassword(auth, email, pass), 5000);
       updateProfile(userCredential.user, { displayName: username }).catch(() => {});
 
-      // Update local state to reflect displayName immediately since onAuthStateChanged might fire before updateProfile finishes
       const newUser = {
         uid: userCredential.user.uid,
         email: userCredential.user.email,
         displayName: username,
         photoURL: userCredential.user.photoURL
       };
-      if (typeof window !== 'undefined') localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
+        const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
+        const vault = vaultStr ? JSON.parse(vaultStr) : {};
+        vault[emailLower] = { ...newUser, passwordHash: pass };
+        localStorage.setItem('gamerbox_accounts_vault', JSON.stringify(vault));
+      }
 
       set({ user: newUser });
       return true;
     } catch (error: unknown) {
+      const e = error as Record<string, unknown>;
+
+      if (e.code === 'auth/email-already-in-use') {
+         set({ authError: 'Este correo ya está registrado.' });
+         return false;
+      }
+
+      if (error instanceof Error) {
+        if (
+          error.message === 'AUTH_TIMEOUT' ||
+          e.code === 'auth/network-request-failed' ||
+          e.code === 'auth/configuration-not-found' ||
+          e.code === 'auth/operation-not-allowed' ||
+          e.code === 'auth/internal-error'
+        ) {
+          return handleFallbackCreate();
+        }
+      }
+
       set({ authError: mapFirebaseError(error) });
       return false;
     }

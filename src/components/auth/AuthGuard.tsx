@@ -9,7 +9,7 @@ import { Navigation } from '@/components/layout/Navigation';
 import { NotificationsDrawer } from '@/components/notifications/NotificationsDrawer';
 import { HydrationGuard } from '@/components/layout/HydrationGuard';
 import { SettingsModal } from '@/components/settings/SettingsModal';
-import { fetchGamesFromCloud, syncGamesToCloud } from '@/services/firestoreService';
+import { fetchGamesFromCloud, syncGamesToCloud, fetchUserProfileFromCloud } from '@/services/firestoreService';
 import { useGameStore } from '@/store/useGameStore';
 import LoginPage from '@/app/login/page';
 
@@ -43,6 +43,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         }).catch(err => {
           console.warn('Firestore background sync warning:', err);
         });
+
+        // Fetch custom profile fields (bio, title)
+        fetchUserProfileFromCloud(user.uid).then(profile => {
+          if (mounted && profile && (profile.bio || profile.title)) {
+             useAuthStore.getState().updateUserProfile(profile);
+          }
+        }).catch(() => {});
+
       } else if (user === null) {
         // Logged out, clear library to default
         if (mounted) {

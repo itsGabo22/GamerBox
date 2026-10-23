@@ -2,6 +2,32 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { Game } from '@/store/useGameStore';
 
+export const syncUserProfileToCloud = async (uid: string, profileData: { bio?: string; title?: string }) => {
+  if (!isFirebaseConfigured || !uid) return;
+  try {
+    const docRef = doc(db, 'users', uid);
+    await setDoc(docRef, { profile: profileData, updatedAt: new Date().toISOString() }, { merge: true });
+    console.log('☁️ [Firestore] User profile metadata synced to cloud.');
+  } catch (error) {
+    console.error('☁️ [Firestore] Error syncing user profile:', error);
+  }
+};
+
+export const fetchUserProfileFromCloud = async (uid: string): Promise<{ bio?: string; title?: string } | null> => {
+  if (!isFirebaseConfigured || !uid) return null;
+  try {
+    const docRef = doc(db, 'users', uid);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists() && docSnap.data().profile) {
+      return docSnap.data().profile;
+    }
+    return null;
+  } catch (error) {
+    console.error('☁️ [Firestore] Error fetching user profile:', error);
+    return null;
+  }
+};
+
 /**
  * Guarda o actualiza la biblioteca completa de juegos del usuario en la nube.
  */
