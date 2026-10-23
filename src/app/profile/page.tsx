@@ -27,7 +27,7 @@ export default function ProfilePage() {
   const playingGames = games.filter(g => g.status === 'PLAYING');
   const favoriteGames = games.filter(g => g.isFavorite);
 
-  const totalHours = completedGames.length * 38 + playingGames.length * 16 + games.length * 4;
+  const totalHours = games.reduce((acc, game) => acc + (game.hoursPlayed || parseInt(game.timePlayed) || 0), 0);
   const xp = completedGames.length * 500 + playingGames.length * 200 + favoriteGames.length * 150 + games.length * 50;
   const level = Math.max(1, Math.floor(xp / 1000) + 1);
   const nextLevelXp = level * 1000;
@@ -70,13 +70,13 @@ export default function ProfilePage() {
         <div className="relative mb-4">
           <div className="absolute inset-0 rounded-full bg-neon-red blur-[20px] opacity-20" />
           <div 
-            className="relative w-24 h-24 rounded-full bg-cover bg-center border-2 border-surface-border shadow-2xl bg-obsidian-black flex items-center justify-center overflow-hidden"
+            className="relative w-24 h-24 rounded-full bg-cover bg-center border-2 border-neon-red shadow-[0_0_20px_rgba(255,42,85,0.4)] bg-obsidian-black flex items-center justify-center overflow-hidden"
             style={{ backgroundImage: user?.photoURL ? `url(${user.photoURL})` : 'none' }}
             aria-label={`Avatar de ${user?.displayName || 'Player'}`}
           >
             {!user?.photoURL && (
-              <span className="font-heading font-bold text-3xl text-text-dim">
-                {(user?.displayName || 'P').charAt(0).toUpperCase()}
+              <span className="font-heading font-black text-3xl text-neon-red-bright drop-shadow-md">
+                {(user?.displayName?.substring(0,2) || 'P1').toUpperCase()}
               </span>
             )}
           </div>

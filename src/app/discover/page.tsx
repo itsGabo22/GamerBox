@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { Search as SearchIcon, TrendingUp, Swords, Gamepad2, Sparkles, Navigation as NavigationIcon } from 'lucide-react';
-import { ALL_GAMES } from '@/data/mockGames';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search as SearchIcon, TrendingUp, Swords, Gamepad2, Sparkles, Navigation as NavigationIcon, Flame } from 'lucide-react';
 import { GameCard } from '@/components/dashboard/GameCard';
-import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/store/useGameStore';
-import { getOracleRecommendations, AiRecommendation } from '@/services/aiService';
+import { getOracleRecommendations, AiRecommendation, analyzeSteamDeals } from '@/services/aiService';
+import { fetchSteamDeals, searchGlobalGames, ApiGameDeal, ApiGameSearchResult } from '@/services/gameApiService';
 import { Button } from '@/components/ui/Button';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useRouter } from 'next/navigation';
 
 const GENRES = [
   { id: 'all', label: 'TODOS', icon: TrendingUp },
@@ -22,16 +22,49 @@ const GENRES = [
 export default function DiscoverPage() {
   const games = useGameStore(state => state.games);
   const addGame = useGameStore(state => state.addGame);
+  const setSelectedGame = useGameStore(state => state.setSelectedGame);
   const { t, language } = useTranslation();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeGenre, setActiveGenre] = useState('all');
 
   const [isOracleLoading, setIsOracleLoading] = useState(false);
   const [oracleResults, setOracleResults] = useState<AiRecommendation[] | null>(null);
 
+  const [deals, setDeals] = useState<ApiGameDeal[]>([]);
+  const [isDealsLoading, setIsDealsLoading] = useState(true);
+  const [dealAnalysis, setDealAnalysis] = useState<{ recommendedDealId: string; analysis: string } | null>(null);
+  const [isDealAnalysisLoading, setIsDealAnalysisLoading] = useState(false);
+
+  const [searchResults, setSearchResults] = useState<ApiGameSearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
   // Custom Game Modal State
   const [showAddModal, setShowAddModal] = useState(false);
   const [newGame, setNewGame] = useState({ title: '', platform: 'PC', genre: 'RPG', status: 'PENDING' });
+
+  useEffect(() => {
+    fetchSteamDeals().then(data => {
+      setDeals(data);
+      setIsDealsLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (searchQuery.trim().length > 2) {
+      setIsSearching(true);
+      const delay = setTimeout(() => {
+        searchGlobalGames(searchQuery).then(res => {
+          setSearchResults(res);
+          setIsSearching(false);
+        });
+      }, 500);
+      return () => clearTimeout(delay);
+    } else {
+      setSearchResults([]);
+      setIsSearching(false);
+    }
+  }, [searchQuery]);
 
   const handleOracleClick = async () => {
     setIsOracleLoading(true);
@@ -46,6 +79,32 @@ export default function DiscoverPage() {
     }
   };
 
+  const handleDealAnalysis = async () => {
+    setIsDealAnalysisLoading(true);
+    try {
+      const favorites = games.filter(g => g.isFavorite).map(g => g.title);
+      const res = await analyzeSteamDeals(deals, favorites, language);
+      setDealAnalysis(res);
+    } finally {
+      setIsDealAnalysisLoading(false);
+    }
+  };
+
+  const handleOpenGlobalGame = (gameInfo: ApiGameSearchResult) => {
+    const tempGame = {
+      id: gameInfo.gameID,
+      title: gameInfo.external,
+      coverUrl: gameInfo.thumb,
+      genre: 'UNKNOWN',
+      platform: 'PC',
+      status: 'PENDING',
+      isFavorite: false,
+      timePlayed: '0 hrs',
+      rating: 0
+    };
+    setSelectedGame(tempGame);
+    router.push(`/game/view?id=${gameInfo.gameID}&external=true`);
+  };
   const handleAddToBacklog = (rec: AiRecommendation) => {
     addGame({
       id: rec.id,
@@ -81,28 +140,12 @@ export default function DiscoverPage() {
   // Filter games based on search and selected genre
   const filteredGames = useMemo(() => {
     let result = games;
-    
-    // Apply search filter
-    if (searchQuery.trim() !== '') {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(game => 
-        game.title.toLowerCase().includes(q) || 
-        game.genre?.toLowerCase().includes(q) ||
-        game.platform?.toLowerCase().includes(q) ||
-        game.developer?.toLowerCase().includes(q)
-      );
-    }
-    
-    // Apply genre filter
     if (activeGenre !== 'all') {
       result = result.filter(game => game.genre?.toLowerCase() === activeGenre);
     }
-    
     return result;
-  }, [searchQuery, activeGenre, games]);
+  }, [activeGenre, games]);
 
-  // Upcoming/Recent Releases logic (just use recent/highest rated as mock)
-  const releases = ALL_GAMES.slice(0, 4);
   const recommendations = filteredGames.slice(0, 6);
 
   return (
@@ -240,48 +283,80 @@ export default function DiscoverPage() {
         </AnimatePresence>
       </section>
 
-      {/* Section 1: LANZAMIENTOS (16:9 Release Cards) */}
+      {/* Section 1: OFERTAS STEAM (Live) */}
       {searchQuery === '' && activeGenre === 'all' && (
         <section className="mb-8">
-          <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-text-dim mb-4 px-2">
-            {t('discover.releases')}
-          </h2>
-          <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:-mx-8 md:px-8">
-            {releases.map(game => (
-              <Link 
-                key={game.id} 
-                href={`/game/${game.id}`}
-                className="snap-start shrink-0 w-[280px] md:w-[320px] aspect-video relative rounded-2xl overflow-hidden group bg-obsidian-dark border border-surface-border transition-colors hover:border-neon-red/50"
-              >
-                <div 
-                  className="w-full h-full bg-cover bg-center transition-transform duration-500 md:group-hover:scale-105"
-                  style={{ backgroundImage: `url(${game.image})` }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-obsidian-black via-obsidian-black/40 to-transparent" />
-                
-                <div className="absolute top-3 left-3">
-                  <span className="px-2 py-1 rounded bg-neon-red/90 backdrop-blur-md text-white font-mono text-[10px] font-bold tracking-widest uppercase shadow-neon">
-                    NEW
-                  </span>
-                </div>
+          <div className="flex items-center justify-between mb-4 px-2">
+            <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-text-dim flex items-center gap-2">
+              <Flame size={14} className="text-neon-red-bright" />
+              Ofertas de Steam en Vivo
+            </h2>
+            <button
+              onClick={handleDealAnalysis}
+              disabled={isDealsLoading || isDealAnalysisLoading || deals.length === 0}
+              className="font-mono text-[10px] text-mint-green uppercase underline hover:text-white transition-colors"
+            >
+              {isDealAnalysisLoading ? 'Analizando...' : '✨ Analizar Ofertas con IA'}
+            </button>
+          </div>
 
-                <div className="absolute bottom-0 left-0 right-0 p-4">
-                  <h3 className="font-heading font-bold text-lg text-white leading-tight line-clamp-1 mb-1">
-                    {game.title}
-                  </h3>
-                  <div className="flex items-center justify-between">
-                    <p className="font-mono text-[10px] text-text-dim uppercase tracking-wider">
-                      {game.releaseDate || 'Recién añadido'}
-                    </p>
-                    {game.platform && (
-                      <span className="text-[10px] font-bold text-white/70 bg-white/10 px-1.5 py-0.5 rounded">
-                        {game.platform}
+          {dealAnalysis && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 px-4 py-3 bg-mint-green/10 border border-mint-green/30 rounded-xl">
+              <p className="font-mono text-[10px] text-mint-green font-bold uppercase mb-1">GamerBox Advisor</p>
+              <p className="font-body text-xs text-white leading-relaxed">{dealAnalysis.analysis}</p>
+            </motion.div>
+          )}
+
+          <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:-mx-8 md:px-8">
+            {isDealsLoading ? (
+              <div className="text-text-dim font-mono text-xs uppercase px-2 py-8">Sincronizando ofertas...</div>
+            ) : (
+              deals.map(deal => {
+                const isRecommended = dealAnalysis?.recommendedDealId === deal.dealID;
+                return (
+                  <div
+                    key={deal.dealID}
+                    onClick={() => {
+                      const tempGame = {
+                        id: deal.gameID,
+                        title: deal.title,
+                        coverUrl: deal.thumb,
+                        genre: 'PC',
+                        platform: 'PC',
+                        status: 'PENDING',
+                        isFavorite: false,
+                        timePlayed: '0 hrs',
+                        rating: 0
+                      };
+                      setSelectedGame(tempGame);
+                      router.push(`/game/view?id=${deal.gameID}&external=true`);
+                    }}
+                    className={`snap-start shrink-0 w-[260px] relative rounded-2xl overflow-hidden group bg-obsidian-dark border cursor-pointer transition-colors ${isRecommended ? 'border-mint-green shadow-[0_0_15px_rgba(94,230,168,0.2)]' : 'border-surface-border hover:border-neon-red/50'}`}
+                  >
+                    <div className="w-full aspect-[4/3] bg-cover bg-center" style={{ backgroundImage: `url(${deal.thumb})` }} />
+                    <div className="absolute top-2 left-2 bg-neon-red px-2 py-1 rounded shadow-neon">
+                      <span className="font-mono text-xs font-bold text-white uppercase tracking-wider">
+                        -{Math.round(parseFloat(deal.savings))}%
                       </span>
+                    </div>
+                    {isRecommended && (
+                      <div className="absolute top-2 right-2 bg-mint-green px-2 py-1 rounded shadow-[0_0_10px_rgba(94,230,168,0.5)]">
+                        <span className="font-mono text-[10px] font-bold text-obsidian-black uppercase tracking-wider">
+                          ✨ IA Pick
+                        </span>
+                      </div>
                     )}
+                    <div className="p-3 bg-obsidian-black border-t border-surface-border">
+                      <h3 className="font-heading font-bold text-sm text-white line-clamp-1 mb-2">{deal.title}</h3>
+                      <div className="flex items-center gap-2">
+                        <span className="text-text-dim text-xs line-through">${deal.normalPrice}</span>
+                        <span className="text-mint-green font-bold font-mono">${deal.salePrice}</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
+                );
+              })
+            )}
           </div>
         </section>
       )}
@@ -315,45 +390,78 @@ export default function DiscoverPage() {
         </section>
       )}
 
-      {/* Section 3: PODRÍA GUSTARTE */}
+      {/* Section 3: PODRÍA GUSTARTE / BÚSQUEDA */}
       <section>
         <div className="flex items-center justify-between mb-4 px-2">
           <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-text-dim">
             {searchQuery !== '' ? t('common.results') : t('discover.mightLike')}
           </h2>
-          {filteredGames.length > 0 && (
-            <span className="font-mono text-[10px] text-text-dim">{filteredGames.length} {t('common.found')}</span>
+          {(searchQuery !== '' ? searchResults.length > 0 : filteredGames.length > 0) && (
+            <span className="font-mono text-[10px] text-text-dim">
+              {searchQuery !== '' ? searchResults.length : filteredGames.length} {t('common.found')}
+            </span>
           )}
         </div>
 
-        {filteredGames.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 md:gap-6">
-            {recommendations.map(game => (
-              <div key={game.id} className="relative">
-                <GameCard game={game} />
-                {game.matchPercentage && (
-                  <div className="absolute -top-2 -right-2 z-10 pointer-events-none">
-                    <div className="bg-obsidian-black px-2 py-1 rounded border border-mint-green shadow-[0_0_10px_rgba(94,230,168,0.2)]">
-                      <p className="font-mono text-[10px] font-bold text-mint-green tracking-widest uppercase whitespace-nowrap">
-                        {game.matchPercentage}% Match
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+        {searchQuery !== '' ? (
+          // Global Search Results
+          isSearching ? (
+            <div className="py-12 text-center text-text-dim font-mono text-xs uppercase">Buscando...</div>
+          ) : searchResults.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3 md:gap-6">
+              {searchResults.map(game => (
+                <div key={game.gameID} onClick={() => handleOpenGlobalGame(game)} className="cursor-pointer">
+                  <GameCard game={{
+                    id: game.gameID,
+                    title: game.external,
+                    coverUrl: game.thumb,
+                    status: 'GLOBAL',
+                    rating: 0,
+                    isFavorite: false,
+                    timePlayed: '0 hrs',
+                    platform: 'PC',
+                    genre: 'UNKNOWN',
+                  }} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-surface-border rounded-2xl bg-surface-glass mt-2"
+            >
+              <p className="text-white font-heading font-bold text-lg mb-2">{t('discover.noResults')}</p>
+              <p className="text-text-dim font-body text-sm max-w-[250px]">
+                {t('discover.noResultsSub')}
+              </p>
+            </motion.div>
+          )
         ) : (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-surface-border rounded-2xl bg-surface-glass mt-2"
-          >
-            <p className="text-white font-heading font-bold text-lg mb-2">{t('discover.noResults')}</p>
-            <p className="text-text-dim font-body text-sm max-w-[250px]">
-              {t('discover.noResultsSub')}
-            </p>
-          </motion.div>
+          // Standard Filtering from User Library
+          filteredGames.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3 md:gap-6">
+              {recommendations.map(game => (
+                <div key={game.id} className="relative cursor-pointer" onClick={() => {
+                  setSelectedGame(game);
+                  router.push(`/game/view?id=${game.id}`);
+                }}>
+                  <GameCard game={game} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-surface-border rounded-2xl bg-surface-glass mt-2"
+            >
+              <p className="text-white font-heading font-bold text-lg mb-2">{t('discover.noResults')}</p>
+              <p className="text-text-dim font-body text-sm max-w-[250px]">
+                {t('discover.noResultsSub')}
+              </p>
+            </motion.div>
+          )
         )}
       </section>
       {/* Custom Game Button */}

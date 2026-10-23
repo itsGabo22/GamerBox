@@ -38,6 +38,113 @@ const FALLBACK_RECOMMENDATIONS: AiRecommendation[] = [
   }
 ];
 
+export const getGameTacticalBreakdown = async (
+  gameTitle: string,
+  language: string = 'es'
+): Promise<{ synopsis: string; matchReason: string; tips: string; timeToBeat: string }> => {
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  if (!apiKey) return { synopsis: 'Información no disponible', matchReason: 'N/A', tips: 'Juega a tu ritmo', timeToBeat: '?? hrs' };
+
+  const prompt = `You are a hardcore gamer AI. Provide a tactical breakdown for the game "${gameTitle}".
+  Respond ONLY with a valid JSON object. Do not use markdown like \`\`\`json.
+  Keys required:
+  "synopsis" (Brief lore/overview),
+  "matchReason" (Why a hardcore gamer would like it),
+  "tips" (One pro tip for beginners),
+  "timeToBeat" (Estimated hours, e.g. "45 hrs").
+  WRITE EVERYTHING IN ${language === 'es' ? 'SPANISH' : 'ENGLISH'}.`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+  try {
+    let response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        signal: controller.signal
+      }
+    ).catch(() => null);
+
+    if (!response || !response.ok) {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+          signal: controller.signal
+        }
+      );
+    }
+
+    if (!response.ok) throw new Error('API Error');
+    const data = await response.json();
+    let textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(textResult);
+  } catch {
+    return { synopsis: 'Análisis IA fallido.', matchReason: '', tips: '', timeToBeat: '' };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+export const analyzeSteamDeals = async (
+  deals: { dealID: string; title: string; salePrice: string }[],
+  favorites: string[],
+  language: string = 'es'
+): Promise<{ recommendedDealId: string; analysis: string }> => {
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  if (!apiKey || !deals || deals.length === 0) return { recommendedDealId: deals?.[0]?.dealID || '', analysis: 'Oferta destacada' };
+
+  const prompt = `You are a savvy Game Deal Advisor. I have these live Steam Deals: ${JSON.stringify(deals.slice(0, 10).map(d => ({id: d.dealID, title: d.title, price: d.salePrice})))}.
+  My favorite games are: ${favorites.join(', ') || 'Action/RPGs'}.
+  Pick the absolute best value deal for me.
+  Respond ONLY with a valid JSON object. Do not use markdown like \`\`\`json.
+  Keys required:
+  "recommendedDealId" (The exact dealID string from the list),
+  "analysis" (A short, punchy 2-sentence explanation of why this is a steal for me. WRITE IN ${language === 'es' ? 'SPANISH' : 'ENGLISH'}).`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+  try {
+    let response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        signal: controller.signal
+      }
+    ).catch(() => null);
+
+    if (!response || !response.ok) {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+          signal: controller.signal
+        }
+      );
+    }
+
+    if (!response.ok) throw new Error('API Error');
+    const data = await response.json();
+    let textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(textResult);
+  } catch {
+    return { recommendedDealId: deals[0].dealID as string, analysis: 'Imposible analizar ofertas en este momento.' };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 export const getOracleRecommendations = async (
   favorites: string[],
   completed: string[],

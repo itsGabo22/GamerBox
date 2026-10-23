@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { ALL_GAMES } from '@/data/mockGames';
 import { syncGamesToCloud } from '@/services/firestoreService';
 import { useAuthStore } from './useAuthStore';
 
@@ -10,9 +9,10 @@ export interface Game {
   coverUrl: string;
   genre: string;
   platform: string;
-  status: string; // 'PENDING', 'PLAYING', 'COMPLETED'
+  status: string; // 'PENDING', 'PLAYING', 'COMPLETED', 'WISHLIST'
   isFavorite: boolean;
   timePlayed: string;
+  hoursPlayed?: number;
   trophies?: { earned: number; total: number };
   rating: number; // preserving some fields from mock for UI
   progress?: number;
@@ -29,39 +29,21 @@ export interface GameState {
   games: Game[];
   isLoading: boolean;
   hasHydrated: boolean;
+  selectedGame: Game | null;
 }
 
 export interface GameActions {
   addGame: (game: Game) => void;
   updateGameStatus: (id: string, status: string) => void;
   toggleFavorite: (id: string) => void;
+  logPlaySession: (id: string, hours: number) => void;
+  clearLibrary: () => void;
+  setSelectedGame: (game: Game | null) => void;
   setHydrated: () => void;
   setIsLoading: (loading: boolean) => void;
   setGames: (games: Game[]) => void;
   resetToDefault: () => void;
 }
-
-// Map mock games to our new strict schema
-const initialGames: Game[] = ALL_GAMES.map((g) => ({
-  id: g.id,
-  title: g.title,
-  coverUrl: g.image || '', // map image -> coverUrl
-  genre: g.genre || 'UNKNOWN',
-  platform: g.platform || 'UNKNOWN',
-  status: g.status,
-  isFavorite: false, // Defaulting to false, will be overridden by Profile favorites if we wanted, but we'll start with 0 favorites or some predefined.
-  timePlayed: g.playTime || '0 hrs',
-  trophies: g.trophies,
-  rating: g.rating,
-  progress: g.progress,
-  synopsis: g.synopsis,
-  developer: g.developer,
-  year: g.year,
-  mission: g.mission,
-  community: g.community,
-  matchPercentage: g.matchPercentage,
-  releaseDate: g.releaseDate,
-}));
 
 // Helper to trigger background sync without breaking UI thread
 const syncToCloud = (games: Game[]) => {
@@ -74,12 +56,15 @@ const syncToCloud = (games: Game[]) => {
 export const useGameStore = create<GameState & GameActions>()(
   persist(
     (set) => ({
-      games: initialGames,
+      games: [],
       isLoading: false,
       hasHydrated: false,
+      selectedGame: null,
 
       addGame: (game) => set((state) => {
-        const newGames = [...state.games, game];
+        // Prevent duplicate IDs
+        if (state.games.some(g => g.id === game.id)) return state;
+        const newGames = [...state.games, { ...game, hoursPlayed: game.hoursPlayed || 0 }];
         syncToCloud(newGames);
         return { games: newGames };
       }),
@@ -96,10 +81,24 @@ export const useGameStore = create<GameState & GameActions>()(
         return { games: newGames };
       }),
 
+      logPlaySession: (id, hours) => set((state) => {
+        const newGames = state.games.map(g =>
+          g.id === id ? { ...g, hoursPlayed: (g.hoursPlayed || 0) + hours, timePlayed: `${(g.hoursPlayed || 0) + hours} hrs` } : g
+        );
+        syncToCloud(newGames);
+        return { games: newGames };
+      }),
+
+      clearLibrary: () => set(() => {
+        syncToCloud([]);
+        return { games: [] };
+      }),
+
+      setSelectedGame: (game) => set({ selectedGame: game }),
       setHydrated: () => set({ hasHydrated: true }),
       setIsLoading: (isLoading) => set({ isLoading }),
-      setGames: (games) => set({ games }),
-      resetToDefault: () => set({ games: initialGames }),
+      setGames: (games) => set({ games: games.map(g => ({ ...g, hoursPlayed: g.hoursPlayed || parseInt(g.timePlayed) || 0 })) }),
+      resetToDefault: () => set({ games: [] }),
     }),
     {
       name: 'gamerbox-storage',

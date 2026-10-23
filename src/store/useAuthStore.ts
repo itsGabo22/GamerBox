@@ -121,16 +121,23 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
 
   signInWithEmail: async (email, pass) => {
     set({ authError: null });
+    const emailLower = email.trim().toLowerCase();
 
-    const handleFallback = () => {
+    const handleFallback = (e?: Record<string, unknown>) => {
+      // STRICT: Never bypass real credential errors
+      if (e && (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found')) {
+         set({ authError: 'Credenciales incorrectas. Verifica tu correo y contraseña.' });
+         return false;
+      }
+
       if (typeof window !== 'undefined') {
         const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
         if (vaultStr) {
           const vault = JSON.parse(vaultStr);
-          const account = vault[email.toLowerCase()];
+          const account = vault[emailLower];
           if (account) {
             if (account.passwordHash === pass) {
-              set({ user: account, isAuthLoading: false });
+              set({ user: account, isAuthLoading: false, authError: null });
               return true;
             } else {
               set({ authError: 'Contraseña incorrecta.' });
@@ -161,7 +168,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
         const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
         const vault = vaultStr ? JSON.parse(vaultStr) : {};
-        vault[email.toLowerCase()] = { ...newUser, passwordHash: pass };
+        vault[emailLower] = { ...newUser, passwordHash: pass };
         localStorage.setItem('gamerbox_accounts_vault', JSON.stringify(vault));
       }
 
@@ -177,19 +184,19 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
           e.code === 'auth/operation-not-allowed' ||
           e.code === 'auth/internal-error'
         ) {
-          return handleFallback();
+          return handleFallback(e);
         }
       }
 
-      set({ authError: mapFirebaseError(error) });
-      return false;
+      return handleFallback(e);
     }
   },
 
   signUpWithEmail: async (email, pass, username) => {
     set({ authError: null });
 
-    if (username.trim().length < 3) {
+    const usernameClean = username.trim().toLowerCase();
+    if (usernameClean.length < 3) {
       set({ authError: 'El Gamertag debe tener al menos 3 caracteres.' });
       return false;
     }
@@ -198,27 +205,31 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       return false;
     }
 
-    const emailLower = email.toLowerCase();
+    const emailLower = email.trim().toLowerCase();
 
+    // STRICT CHECK: Ensure uniqueness before trying Firebase
     if (typeof window !== 'undefined') {
       const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
       if (vaultStr) {
         const vault = JSON.parse(vaultStr);
         if (vault[emailLower]) {
-           if (vault[emailLower].passwordHash === pass) {
-               set({ user: vault[emailLower], isAuthLoading: false });
-               return true;
-           } else {
-               set({ authError: 'Este correo ya está registrado. Usa Iniciar Sesión.' });
-               return false;
-           }
+           set({ authError: 'Este correo ya está registrado. Por favor usa la pestaña Iniciar Sesión.' });
+           return false;
+        }
+        const usernameTaken = Object.values(vault).some((acc: unknown) => {
+          const profile = acc as Record<string, unknown>;
+          return typeof profile.displayName === 'string' && profile.displayName.toLowerCase() === usernameClean;
+        });
+        if (usernameTaken) {
+           set({ authError: `El Gamertag "${username.trim()}" ya está en uso. Elige otro identificador.` });
+           return false;
         }
       }
     }
 
     const handleFallbackCreate = () => {
       console.warn('🔐 [GamerBox Auth] Fallback Mode: Fake Sign Up due to network/timeout');
-      const newUser = { uid: 'local-' + Date.now(), email, displayName: username, photoURL: null };
+      const newUser = { uid: 'local-' + Date.now(), email: emailLower, displayName: username, photoURL: null };
 
       if (typeof window !== 'undefined') {
         localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
@@ -255,13 +266,13 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         localStorage.setItem('gamerbox_accounts_vault', JSON.stringify(vault));
       }
 
-      set({ user: newUser });
+      set({ user: newUser, isAuthLoading: false, authError: null });
       return true;
     } catch (error: unknown) {
       const e = error as Record<string, unknown>;
 
       if (e.code === 'auth/email-already-in-use') {
-         set({ authError: 'Este correo ya está registrado.' });
+         set({ authError: 'Este correo ya está registrado. Inicia sesión con tu cuenta.' });
          return false;
       }
 
