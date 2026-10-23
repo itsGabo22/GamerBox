@@ -4,6 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 interface SettingsState {
   theme: 'dark' | 'light';
   language: 'es' | 'en';
+  currency: 'COP' | 'USD' | 'EUR' | 'MXN';
   isSettingsOpen: boolean;
 }
 
@@ -11,6 +12,7 @@ interface SettingsActions {
   setTheme: (theme: 'dark' | 'light') => void;
   toggleTheme: () => void;
   setLanguage: (lang: 'es' | 'en') => void;
+  setCurrency: (currency: 'COP' | 'USD' | 'EUR' | 'MXN') => void;
   openSettings: () => void;
   closeSettings: () => void;
 }
@@ -18,8 +20,9 @@ interface SettingsActions {
 export const useSettingsStore = create<SettingsState & SettingsActions>()(
   persist(
     (set) => ({
-      theme: 'light',
+      theme: 'dark',
       language: 'es',
+      currency: 'COP',
       isSettingsOpen: false,
 
       setTheme: (theme) => {
@@ -38,12 +41,13 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
       }),
 
       setLanguage: (language) => set({ language }),
+      setCurrency: (currency) => set({ currency }),
       openSettings: () => set({ isSettingsOpen: true }),
       closeSettings: () => set({ isSettingsOpen: false }),
     }),
     {
       name: 'gamerbox-settings',
-      partialize: (state) => ({ theme: state.theme, language: state.language }), // don't persist isSettingsOpen
+      partialize: (state) => ({ theme: state.theme, language: state.language, currency: state.currency }), // don't persist isSettingsOpen
       storage: createJSONStorage(() => typeof window !== 'undefined' ? localStorage : {
         getItem: () => null,
         setItem: () => {},

@@ -83,6 +83,27 @@ export const SettingsModal = () => {
               </div>
             </section>
 
+            {/* Currency Selector */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <Globe size={16} className="text-neon-red" />
+                <h3 className="font-mono text-xs font-bold tracking-widest text-text-dim uppercase">
+                  MONEDA REGIONAL
+                </h3>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {(['COP', 'USD', 'EUR', 'MXN'] as const).map(cur => (
+                  <button
+                    key={cur}
+                    onClick={() => useSettingsStore.getState().setCurrency(cur)}
+                    className={`py-3 rounded-xl border font-heading font-bold text-sm transition-colors ${useSettingsStore.getState().currency === cur ? 'bg-neon-red/10 border-neon-red shadow-neon text-white' : 'bg-surface-glass border-surface-border text-text-dim hover:text-white'}`}
+                  >
+                    {cur}
+                  </button>
+                ))}
+              </div>
+            </section>
+
             {/* Theme Selector */}
             <section>
               <div className="flex items-center gap-2 mb-4">

@@ -12,6 +12,8 @@ export const Hero = () => {
   const router = useRouter();
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [sessionActive, setSessionActive] = useState(false);
+  const [activeRegion, setActiveRegion] = useState('LATAM North - Bogotá');
+  const [activeRole, setActiveRole] = useState('Assault / DPS');
   const { logPlaySession } = useGameStore();
 
   const handleDetailsClick = () => {
@@ -93,21 +95,35 @@ export const Hero = () => {
 
               {!sessionActive ? (
                 <div className="flex flex-col gap-4">
-                  <div>
+                  <div className="relative">
                     <label className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1 block">Server Region</label>
-                    <select className="w-full h-12 px-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm">
-                      <option>LATAM North - Bogotá</option>
-                      <option>US East - Virginia</option>
-                      <option>Brazil South - SP</option>
-                    </select>
+                    <div className="flex flex-col gap-1 border border-surface-border p-1 rounded-xl bg-obsidian-black">
+                      {['LATAM North - Bogotá', 'US East - Virginia', 'Brazil South - SP'].map(region => (
+                        <button
+                          key={region}
+                          type="button"
+                          onClick={() => setActiveRegion(region)}
+                          className={`w-full text-left px-3 py-2 rounded-lg font-mono text-xs transition-colors ${activeRegion === region ? 'bg-neon-red/20 text-neon-red-bright border border-neon-red/30' : 'text-text-dim hover:text-white hover:bg-white/5'}`}
+                        >
+                          {region} {region === 'LATAM North - Bogotá' ? '(42ms)' : region === 'US East - Virginia' ? '(89ms)' : '(125ms)'}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div>
+                  <div className="relative">
                     <label className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1 block">Squad Role</label>
-                    <select className="w-full h-12 px-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm">
-                      <option>Assault / DPS</option>
-                      <option>Tactical Support</option>
-                      <option>Recon</option>
-                    </select>
+                    <div className="flex flex-col gap-1 border border-surface-border p-1 rounded-xl bg-obsidian-black">
+                      {['Assault / DPS', 'Tactical Support', 'Recon'].map(role => (
+                        <button
+                          key={role}
+                          type="button"
+                          onClick={() => setActiveRole(role)}
+                          className={`w-full text-left px-3 py-2 rounded-lg font-mono text-xs transition-colors ${activeRole === role ? 'bg-mint-green/20 text-mint-green border border-mint-green/30' : 'text-text-dim hover:text-white hover:bg-white/5'}`}
+                        >
+                          {role}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <Button variant="neon" className="w-full mt-4" onClick={handleStartSession}>
                     INITIALIZE SESSION

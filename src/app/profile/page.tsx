@@ -10,6 +10,13 @@ import { useTranslation } from '@/i18n/useTranslation';
 import { LogOut, Edit2, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
+const AVATAR_PRESETS = [
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230D0F18"/><circle cx="50" cy="50" r="30" fill="none" stroke="%23ff2a55" stroke-width="4"/><path d="M 30 50 L 70 50 M 50 30 L 50 70" stroke="%23ff2a55" stroke-width="4"/></svg>',
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230D0F18"/><polygon points="50,20 80,80 20,80" fill="none" stroke="%235ee6a8" stroke-width="4"/><circle cx="50" cy="60" r="10" fill="%235ee6a8"/></svg>',
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230D0F18"/><rect x="25" y="25" width="50" height="50" fill="none" stroke="%23ff2a55" stroke-width="4" transform="rotate(45 50 50)"/><circle cx="50" cy="50" r="15" fill="%23ff2a55"/></svg>',
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230D0F18"/><path d="M 20 20 Q 50 80 80 20" fill="none" stroke="%235ee6a8" stroke-width="6"/><circle cx="50" cy="30" r="8" fill="%235ee6a8"/></svg>',
+];
+
 export default function ProfilePage() {
   const games = useGameStore(state => state.games);
   const { user, logout, updateUserProfile } = useAuthStore();
@@ -70,12 +77,24 @@ export default function ProfilePage() {
         <div className="relative mb-4">
           <div className="absolute inset-0 rounded-full bg-neon-red blur-[20px] opacity-20" />
           <div 
-            className="relative w-24 h-24 rounded-full bg-cover bg-center border-2 border-neon-red shadow-[0_0_20px_rgba(255,42,85,0.4)] bg-obsidian-black flex items-center justify-center overflow-hidden"
-            style={{ backgroundImage: user?.photoURL ? `url(${user.photoURL})` : 'none' }}
+            className="relative w-24 h-24 rounded-full border-2 border-neon-red shadow-[0_0_20px_rgba(255,42,85,0.4)] bg-obsidian-black flex items-center justify-center overflow-hidden"
             aria-label={`Avatar de ${user?.displayName || 'Player'}`}
           >
-            {!user?.photoURL && (
-              <span className="font-heading font-black text-3xl text-neon-red-bright drop-shadow-md">
+            {user?.photoURL ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={user.photoURL}
+                alt="Avatar"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.parentElement?.classList.add('fallback-active');
+                }}
+              />
+            ) : null}
+
+            {(!user?.photoURL || false) && (
+              <span className="font-heading font-black text-3xl text-neon-red-bright drop-shadow-md fallback-text absolute">
                 {(user?.displayName?.substring(0,2) || 'P1').toUpperCase()}
               </span>
             )}
@@ -244,7 +263,20 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <label className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1 block">Avatar URL</label>
-                  <input placeholder="https://..." value={editForm.photoURL} onChange={e => setEditForm({...editForm, photoURL: e.target.value})} className="w-full h-12 px-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm" />
+                  <input placeholder="https://..." value={editForm.photoURL} onChange={e => setEditForm({...editForm, photoURL: e.target.value})} className="w-full h-12 px-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm mb-2" />
+                  <div className="flex flex-wrap gap-2">
+                    {AVATAR_PRESETS.map((url, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setEditForm({...editForm, photoURL: url})}
+                        className={`w-10 h-10 rounded-full border-2 overflow-hidden transition-all ${editForm.photoURL === url ? 'border-neon-red shadow-neon' : 'border-surface-border hover:border-text-dim'}`}
+                      >
+                         {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt={`Preset ${i}`} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <Button type="submit" variant="neon" className="w-full mt-4">Guardar Cambios</Button>
               </form>

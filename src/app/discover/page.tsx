@@ -481,18 +481,36 @@ export default function DiscoverPage() {
               <form onSubmit={submitNewGame} className="flex flex-col gap-4">
                 <input required placeholder="Título" value={newGame.title} onChange={e => setNewGame({...newGame, title: e.target.value})} className="w-full h-12 px-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm" />
                 <div className="grid grid-cols-2 gap-4">
-                  <select value={newGame.platform} onChange={e => setNewGame({...newGame, platform: e.target.value})} className="h-12 px-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm">
-                    <option value="PC">PC</option>
-                    <option value="PS5">PS5</option>
-                    <option value="Switch">Switch</option>
-                    <option value="Xbox">Xbox</option>
-                  </select>
-                  <select value={newGame.genre} onChange={e => setNewGame({...newGame, genre: e.target.value})} className="h-12 px-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm">
-                    <option value="RPG">RPG</option>
-                    <option value="ACTION">ACTION</option>
-                    <option value="SHOOTER">SHOOTER</option>
-                    <option value="RACING">RACING</option>
-                  </select>
+                  <div className="relative">
+                    <label className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1 block">Plataforma</label>
+                    <div className="flex flex-col gap-1 border border-surface-border p-1 rounded-xl bg-obsidian-black">
+                      {['PC', 'PS5', 'Switch', 'Xbox'].map(plat => (
+                        <button
+                          key={plat}
+                          type="button"
+                          onClick={() => setNewGame({...newGame, platform: plat})}
+                          className={`w-full text-left px-3 py-1.5 rounded-lg font-mono text-xs transition-colors ${newGame.platform === plat ? 'bg-neon-red/20 text-neon-red-bright border border-neon-red/30' : 'text-text-dim hover:text-white hover:bg-white/5'}`}
+                        >
+                          {plat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <label className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1 block">Género</label>
+                    <div className="flex flex-col gap-1 border border-surface-border p-1 rounded-xl bg-obsidian-black">
+                      {['RPG', 'ACTION', 'SHOOTER', 'RACING'].map(gen => (
+                        <button
+                          key={gen}
+                          type="button"
+                          onClick={() => setNewGame({...newGame, genre: gen})}
+                          className={`w-full text-left px-3 py-1.5 rounded-lg font-mono text-xs transition-colors ${newGame.genre === gen ? 'bg-mint-green/20 text-mint-green border border-mint-green/30' : 'text-text-dim hover:text-white hover:bg-white/5'}`}
+                        >
+                          {gen}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
                 <Button type="submit" variant="neon" className="w-full mt-2">Guardar en Backlog</Button>
               </form>
