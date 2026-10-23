@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { NotificationProvider } from "@/components/notifications/NotificationProvider";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { BackButtonHandler } from "@/components/layout/BackButtonHandler";
 
 const inter = Inter({ 
   subsets: ["latin"], 
@@ -52,6 +53,7 @@ export default function RootLayout({
     <html lang="es" className={`${inter.variable} ${spaceGrotesk.variable} ${spaceMono.variable}`} suppressHydrationWarning>
       <body className="antialiased min-h-screen flex flex-col bg-obsidian-black text-white selection:bg-neon-red/30 overscroll-none">
         <NotificationProvider>
+          <BackButtonHandler />
           <div className="w-full max-w-md mx-auto min-h-screen relative flex flex-col bg-obsidian-dark/20 border-x border-white/5 shadow-2xl">
             <AuthGuard>
               {children}

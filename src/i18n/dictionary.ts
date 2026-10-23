@@ -10,13 +10,17 @@ export const dictionary = {
     settings: {
       title: 'AJUSTES DEL SISTEMA',
       language: 'IDIOMA',
+      currency: 'MONEDA REGIONAL',
       theme: 'TEMA VISUAL',
-      dark: 'OSCURO (OBSIDIAN)',
-      light: 'CLARO (STITCH)',
+      dark: 'OSCURO',
+      light: 'CLARO',
       close: 'CERRAR',
-      version: 'GamerBox v1.0.0-PROD • Gemini 1.5 Flash',
-      credit: 'Diseño original por Stitch',
-      logout: 'CERRAR SESIÓN'
+      version: 'GAMERBOX V1.0.0',
+      logout: 'CERRAR SESIÓN',
+      delete: 'ELIMINAR CUENTA',
+      deleteConfirm: '¿ELIMINAR TU CUENTA Y BÓVEDA PARA SIEMPRE?',
+      deleteYes: 'SÍ, ELIMINAR CUENTA',
+      deleteCancel: 'CANCELAR'
     },
     common: {
       searchPlaceholder: 'Buscar juegos...',
@@ -92,13 +96,17 @@ export const dictionary = {
     settings: {
       title: 'SYSTEM SETTINGS',
       language: 'LANGUAGE',
+      currency: 'REGIONAL CURRENCY',
       theme: 'VISUAL THEME',
-      dark: 'DARK (OBSIDIAN)',
-      light: 'LIGHT (STITCH)',
+      dark: 'DARK',
+      light: 'LIGHT',
       close: 'CLOSE',
-      version: 'GamerBox v1.0.0-PROD • Gemini 1.5 Flash',
-      credit: 'Original design by Stitch',
-      logout: 'SIGN OUT'
+      version: 'GAMERBOX V1.0.0',
+      logout: 'SIGN OUT',
+      delete: 'DELETE ACCOUNT',
+      deleteConfirm: 'PERMANENTLY DELETE YOUR ACCOUNT AND VAULT?',
+      deleteYes: 'YES, DELETE ACCOUNT',
+      deleteCancel: 'CANCEL'
     },
     common: {
       searchPlaceholder: 'Search games...',

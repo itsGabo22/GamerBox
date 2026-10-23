@@ -3,15 +3,21 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { useGameStore } from '@/store/useGameStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useTranslation } from '@/i18n/useTranslation';
-import { X, Moon, Sun, Globe, LogOut } from 'lucide-react';
+import { X, Moon, Sun, Globe, LogOut, Trash2 } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
+import { useRouter } from 'next/navigation';
 
 export const SettingsModal = () => {
   const { isSettingsOpen, closeSettings, theme, setTheme, language, setLanguage } = useSettingsStore();
-  const { logout } = useAuthStore();
+  const { logout, deleteAccount } = useAuthStore();
+  const { clearLibrary } = useGameStore();
   const { t } = useTranslation();
+  const router = useRouter();
+
+  const [isDeleting, setIsDeleting] = React.useState(false);
 
   if (!isSettingsOpen) return null;
 
@@ -63,13 +69,13 @@ export const SettingsModal = () => {
                   onClick={() => setLanguage('es')}
                   className={`flex-1 py-3 font-heading font-bold text-sm z-10 transition-colors ${language === 'es' ? 'text-white' : 'text-text-dim'}`}
                 >
-                  🇪🇸 Español
+                  Español
                 </button>
                 <button
                   onClick={() => setLanguage('en')}
                   className={`flex-1 py-3 font-heading font-bold text-sm z-10 transition-colors ${language === 'en' ? 'text-white' : 'text-text-dim'}`}
                 >
-                  🇺🇸 English
+                  English
                 </button>
 
                 {/* Active Pill Indicator */}
@@ -88,7 +94,7 @@ export const SettingsModal = () => {
               <div className="flex items-center gap-2 mb-4">
                 <Globe size={16} className="text-neon-red" />
                 <h3 className="font-mono text-xs font-bold tracking-widest text-text-dim uppercase">
-                  MONEDA REGIONAL
+                  {t('settings.currency')}
                 </h3>
               </div>
               <div className="grid grid-cols-4 gap-2">
@@ -150,23 +156,55 @@ export const SettingsModal = () => {
                     <span className="font-heading font-black text-xl text-neon-red-bright">GB</span>
                   </div>
                   <p className="font-mono text-[10px] font-bold text-white tracking-widest uppercase">
-                    {t('settings.version')}
-                  </p>
-                  <p className="font-body text-xs text-text-dim">
-                    {t('settings.credit')}
+                    GAMERBOX V1.0.0
                   </p>
                 </div>
 
-                <button
-                  onClick={() => {
-                    closeSettings();
-                    logout();
-                  }}
-                  className="w-full flex items-center justify-center gap-2 h-12 bg-obsidian-black border border-neon-red/30 rounded-xl text-neon-red-bright font-mono text-xs font-bold tracking-widest uppercase transition-all hover:bg-neon-red/10 shadow-[0_0_15px_rgba(255,42,85,0.1)] active:scale-95"
-                >
-                  <LogOut size={16} />
-                  {t('settings.logout')}
-                </button>
+                {isDeleting ? (
+                  <div className="flex flex-col gap-3">
+                    <p className="font-mono text-[10px] text-neon-red-bright uppercase text-center mb-2">
+                      {t('settings.deleteConfirm')}
+                    </p>
+                    <button
+                      onClick={async () => {
+                        await deleteAccount();
+                        clearLibrary();
+                        closeSettings();
+                        router.replace('/login');
+                      }}
+                      className="w-full flex items-center justify-center gap-2 h-12 bg-neon-red border border-neon-red-bright rounded-xl text-white font-mono text-xs font-bold tracking-widest uppercase transition-all shadow-neon"
+                    >
+                      {t('settings.deleteYes')}
+                    </button>
+                    <button
+                      onClick={() => setIsDeleting(false)}
+                      className="w-full flex items-center justify-center gap-2 h-12 bg-obsidian-black border border-surface-border rounded-xl text-text-dim font-mono text-xs font-bold tracking-widest uppercase transition-all hover:text-white"
+                    >
+                      {t('settings.deleteCancel')}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    <button
+                      onClick={() => {
+                        closeSettings();
+                        logout();
+                      }}
+                      className="w-full flex items-center justify-center gap-2 h-12 bg-obsidian-black border border-surface-border rounded-xl text-text-dim font-mono text-xs font-bold tracking-widest uppercase transition-all hover:text-white"
+                    >
+                      <LogOut size={16} />
+                      {t('settings.logout')}
+                    </button>
+
+                    <button
+                      onClick={() => setIsDeleting(true)}
+                      className="w-full flex items-center justify-center gap-2 h-12 bg-obsidian-black border border-neon-red/30 rounded-xl text-neon-red-bright font-mono text-xs font-bold tracking-widest uppercase transition-all hover:bg-neon-red/10 shadow-[0_0_15px_rgba(255,42,85,0.1)] active:scale-95"
+                    >
+                      <Trash2 size={16} />
+                      {t('settings.delete')}
+                    </button>
+                  </div>
+                )}
               </GlassPanel>
             </section>
           </div>
