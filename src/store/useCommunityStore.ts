@@ -11,6 +11,16 @@ export interface Comment {
   createdAt: string;
 }
 
+export interface FriendProfile {
+  uid: string;
+  gamertag: string;
+  title: string;
+  photoURL: string | null;
+  status: 'ONLINE' | 'IN_GAME' | 'OFFLINE';
+  currentGame?: string;
+  isFriend: boolean;
+}
+
 export interface CommunityPost {
   id: string;
   authorUid: string;
@@ -28,6 +38,7 @@ export interface CommunityPost {
 
 interface CommunityState {
   posts: CommunityPost[];
+  friends: FriendProfile[];
   isFetching: boolean;
 }
 
@@ -36,6 +47,8 @@ interface CommunityActions {
   addPost: (postData: { gameTitle: string; rating: number; content: string }) => Promise<void>;
   toggleLike: (postId: string) => Promise<void>;
   addComment: (postId: string, text: string) => Promise<void>;
+  addFriend: (uid: string) => void;
+  removeFriend: (uid: string) => void;
 }
 
 const STARTER_POSTS: CommunityPost[] = [
@@ -71,10 +84,31 @@ const STARTER_POSTS: CommunityPost[] = [
   }
 ];
 
+const STARTER_FRIENDS: FriendProfile[] = [
+  {
+    uid: 'sys-1',
+    gamertag: 'NeonDrifter',
+    title: 'SPEEDRUNNER',
+    photoURL: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=100&q=80',
+    status: 'IN_GAME',
+    currentGame: 'Neon White',
+    isFriend: true
+  },
+  {
+    uid: 'sys-2',
+    gamertag: 'V_Legend',
+    title: 'CYBER MERCENARY',
+    photoURL: 'https://images.unsplash.com/photo-1605806616949-1e87b487cb2a?w=100&q=80',
+    status: 'ONLINE',
+    isFriend: false
+  }
+];
+
 export const useCommunityStore = create<CommunityState & CommunityActions>()(
   persist(
     (set) => ({
       posts: STARTER_POSTS,
+      friends: STARTER_FRIENDS,
       isFetching: false,
 
       fetchPosts: async () => {
@@ -183,7 +217,15 @@ export const useCommunityStore = create<CommunityState & CommunityActions>()(
             console.warn('☁️ [Firestore] Comment sync failed:', error);
           }
         }
-      }
+      },
+
+      addFriend: (uid) => set((state) => ({
+        friends: state.friends.map(f => f.uid === uid ? { ...f, isFriend: true } : f)
+      })),
+
+      removeFriend: (uid) => set((state) => ({
+        friends: state.friends.map(f => f.uid === uid ? { ...f, isFriend: false } : f)
+      }))
     }),
     {
       name: 'gamerbox-community-storage',

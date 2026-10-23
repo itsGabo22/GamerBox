@@ -1,6 +1,7 @@
 import React from 'react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useTranslation } from '@/i18n/useTranslation';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -21,6 +22,7 @@ interface FilterChipsProps {
 }
 
 export const FilterChips = ({ filters, activeFilters, onToggle, onReset, totalCount }: FilterChipsProps) => {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-2 mt-4 -mx-4 px-4 snap-x">
       <button
@@ -32,11 +34,12 @@ export const FilterChips = ({ filters, activeFilters, onToggle, onReset, totalCo
             : "bg-surface-glass text-text-dim border-surface-border hover:text-white"
         )}
       >
-        ALL ({totalCount})
+        {t('backlog.all')} ({totalCount})
       </button>
 
       {filters.map((filter) => {
         const isActive = activeFilters.includes(filter.id);
+        const prefix = filter.type === 'status' ? t('backlog.statusPrefix') : filter.type === 'genre' ? 'GENRE: ' : '';
         return (
           <button
             key={filter.id}
@@ -48,7 +51,7 @@ export const FilterChips = ({ filters, activeFilters, onToggle, onReset, totalCo
                 : "bg-surface-glass text-text-dim border-surface-border hover:text-white"
             )}
           >
-            {filter.type}: {filter.label}
+            {prefix}{filter.label}
           </button>
         );
       })}

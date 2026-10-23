@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { GameCard } from '@/components/dashboard/GameCard';
 import { useGameStore } from '@/store/useGameStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useTranslation } from '@/i18n/useTranslation';
-import { LogOut, Edit2, X } from 'lucide-react';
+import { LogOut, Edit2, X, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 const AVATAR_PRESETS = [
@@ -60,10 +60,41 @@ export default function ProfilePage() {
 
   const PRESET_TITLES = ["CYBER MERCENARY", "PLATINUM HUNTER", "LORE MASTER", "SPEEDRUNNER"];
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     await updateUserProfile(editForm);
     setIsEditing(false);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 240;
+        canvas.height = 240;
+
+        // Simple crop to center
+        const size = Math.min(img.width, img.height);
+        const startX = (img.width - size) / 2;
+        const startY = (img.height - size) / 2;
+
+        ctx?.drawImage(img, startX, startY, size, size, 0, 0, 240, 240);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        setEditForm(prev => ({ ...prev, photoURL: dataUrl }));
+      };
+      if (typeof event.target?.result === 'string') {
+        img.src = event.target.result;
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -277,6 +308,23 @@ export default function ProfilePage() {
                       </button>
                     ))}
                   </div>
+
+                  <input
+                    type="file"
+                    accept="image/*"
+                    ref={fileInputRef}
+                    className="hidden"
+                    onChange={handleImageUpload}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full mt-2 border border-surface-border flex items-center justify-center gap-2"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Camera size={16} />
+                    📱 Elegir Foto de mi Galería
+                  </Button>
                 </div>
                 <Button type="submit" variant="neon" className="w-full mt-4">Guardar Cambios</Button>
               </form>

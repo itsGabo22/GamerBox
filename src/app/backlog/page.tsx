@@ -6,22 +6,24 @@ import { Search } from '@/components/backlog/Search';
 import { FilterChips, Filter } from '@/components/backlog/FilterChips';
 import { GameCard } from '@/components/dashboard/GameCard';
 import { useGameStore } from '@/store/useGameStore';
-
-const AVAILABLE_FILTERS: Filter[] = [
-  { id: 'status:PLAYING', label: 'PLAYING', type: 'status' },
-  { id: 'status:PENDING', label: 'PENDING', type: 'status' },
-  { id: 'status:COMPLETED', label: 'COMPLETED', type: 'status' },
-  { id: 'platform:PS5', label: 'PS5', type: 'platform' },
-  { id: 'platform:PC', label: 'PC', type: 'platform' },
-  { id: 'platform:SWITCH', label: 'SWITCH', type: 'platform' },
-  { id: 'genre:RPG', label: 'RPG', type: 'genre' },
-  { id: 'genre:ACTION', label: 'ACTION', type: 'genre' },
-];
+import { useTranslation } from '@/i18n/useTranslation';
 
 export default function BacklogPage() {
   const games = useGameStore(state => state.games);
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+
+  const AVAILABLE_FILTERS: Filter[] = [
+    { id: 'status:PLAYING', label: t('common.playing'), type: 'status' },
+    { id: 'status:PENDING', label: t('common.pending'), type: 'status' },
+    { id: 'status:COMPLETED', label: t('common.completed'), type: 'status' },
+    { id: 'platform:PS5', label: 'PS5', type: 'platform' },
+    { id: 'platform:PC', label: 'PC', type: 'platform' },
+    { id: 'platform:SWITCH', label: 'SWITCH', type: 'platform' },
+    { id: 'genre:RPG', label: 'RPG', type: 'genre' },
+    { id: 'genre:ACTION', label: 'ACTION', type: 'genre' },
+  ];
 
   const handleToggleFilter = (filterId: string) => {
     setActiveFilters(prev => 
@@ -76,10 +78,10 @@ export default function BacklogPage() {
       {/* Vault Header */}
       <header className="mb-6">
         <h1 className="text-3xl font-heading font-bold uppercase tracking-tight text-white mb-1">
-          MI BACKLOG
+          {t('backlog.title')}
         </h1>
         <p className="font-mono text-xs text-text-dim tracking-widest uppercase">
-          VAULT // v2.4
+          {t('backlog.subtitle')}
         </p>
       </header>
 
@@ -112,8 +114,8 @@ export default function BacklogPage() {
         
         {filteredGames.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-surface-border rounded-2xl bg-surface-glass mt-4">
-            <p className="text-text-dim font-mono text-sm uppercase tracking-wider mb-2">No results found</p>
-            <p className="text-white/50 text-xs max-w-[200px]">Try adjusting your search or filters to find what you are looking for.</p>
+            <p className="text-text-dim font-mono text-sm uppercase tracking-wider mb-2">{t('backlog.noResults')}</p>
+            <p className="text-white/50 text-xs max-w-[200px]">{t('backlog.noResultsSub')}</p>
           </div>
         )}
       </div>

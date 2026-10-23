@@ -9,11 +9,13 @@ import { Button } from '@/components/ui/Button';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { getGameTacticalBreakdown } from '@/services/aiService';
 import { SafeGameImage } from '@/components/ui/SafeGameImage';
+import { useTranslation } from '@/i18n/useTranslation';
 
 export default function GameViewPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const id = searchParams.get('id');
+  const { t } = useTranslation();
 
   const { selectedGame, games, addGame, updateGameStatus, toggleFavorite, logPlaySession } = useGameStore();
 
@@ -122,14 +124,18 @@ export default function GameViewPage() {
                     exit={{ opacity: 0, y: -10 }}
                     className="absolute top-full left-0 mt-2 w-32 bg-obsidian-dark border border-surface-border rounded-xl shadow-glass overflow-hidden z-50 flex flex-col"
                   >
-                    {['PENDING', 'PLAYING', 'COMPLETED', 'WISHLIST'].map(s => (
+                    {[
+                      { key: 'PENDING', label: t('common.pending') },
+                      { key: 'PLAYING', label: t('common.playing') },
+                      { key: 'COMPLETED', label: t('common.completed') },
+                    ].map(s => (
                       <button
-                        key={s}
-                        onClick={() => handleChangeStatus(s)}
+                        key={s.key}
+                        onClick={() => handleChangeStatus(s.key)}
                         className="px-3 py-2 text-left font-mono text-[10px] text-text-dim hover:text-white hover:bg-white/5 transition-colors uppercase tracking-widest flex items-center justify-between"
                       >
-                        {s}
-                        {gameToDisplay.status === s && <Check size={12} className="text-neon-red" />}
+                        {s.label}
+                        {gameToDisplay.status === s.key && <Check size={12} className="text-neon-red" />}
                       </button>
                     ))}
                   </motion.div>

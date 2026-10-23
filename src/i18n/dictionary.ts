@@ -47,7 +47,15 @@ export const dictionary = {
     },
     backlog: {
       title: 'MI BACKLOG',
-      subtitle: 'VAULT // v2.4'
+      subtitle: 'BÓVEDA // V2.4',
+      total: 'TOTAL',
+      pending: 'PENDIENTES',
+      playing: 'JUGANDO',
+      completed: 'COMPLETADOS',
+      all: 'TODOS',
+      statusPrefix: 'ESTADO: ',
+      noResults: 'SIN RESULTADOS EN TU BÓVEDA',
+      noResultsSub: 'Aún no tienes juegos en esta categoría o con ese filtro. Ve a Descubrir para añadir títulos a tu colección.'
     },
     gameDetail: {
       synopsis: 'SINOPSIS',
@@ -65,12 +73,12 @@ export const dictionary = {
     },
     profile: {
       progress: 'PROGRESO',
-      daysStreak: 'Racha (Días)',
-      platinums: 'Platinos',
-      totalTime: 'Tiempo Total',
+      daysStreak: 'RACHA DE DÍAS',
+      platinums: 'PLATINOS',
+      totalTime: 'TIEMPO TOTAL',
       favorites: 'FAVORITOS HISTÓRICOS',
-      genreDist: 'DISTRIBUCIÓN POR GÉNEROS',
-      logout: 'Cerrar Sesión'
+      genreDist: 'DISTRIBUCIÓN DE GÉNEROS',
+      logout: 'CERRAR SESIÓN'
     }
   },
   en: {
@@ -121,7 +129,15 @@ export const dictionary = {
     },
     backlog: {
       title: 'MY BACKLOG',
-      subtitle: 'VAULT // v2.4'
+      subtitle: 'VAULT // V2.4',
+      total: 'TOTAL',
+      pending: 'PENDING',
+      playing: 'PLAYING',
+      completed: 'COMPLETED',
+      all: 'ALL',
+      statusPrefix: 'STATUS: ',
+      noResults: 'NO RESULTS FOUND',
+      noResultsSub: 'Try adjusting your search or filters to find what you are looking for.'
     },
     gameDetail: {
       synopsis: 'SYNOPSIS',
