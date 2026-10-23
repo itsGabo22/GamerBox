@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { FirebaseError } from 'firebase/app';
-import { auth, isFirebaseConfigured } from '@/lib/firebase';
+import { auth, isFirebaseConfigured, db } from '@/lib/firebase';
 import { syncUserProfileToCloud } from '@/services/firestoreService';
+import { doc, deleteDoc } from 'firebase/firestore';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -29,7 +30,9 @@ interface AuthActions {
   initAuthListener: () => () => void;
   signInWithEmail: (email: string, pass: string) => Promise<boolean>;
   signUpWithEmail: (email: string, pass: string, username: string) => Promise<boolean>;
+  signInWithGoogleAccount: (email: string, displayName: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<boolean>;
   clearError: () => void;
   updateUserProfile: (data: Partial<UserProfile>) => Promise<void>;
 }
@@ -299,6 +302,55 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       set({ authError: mapFirebaseError(error) });
       return false;
     }
+  },
+
+  signInWithGoogleAccount: async (email, displayName) => {
+    set({ authError: null });
+    const emailLower = email.trim().toLowerCase();
+    const newUser = {
+      uid: 'google-' + Date.now(),
+      email: emailLower,
+      displayName,
+      photoURL: null
+    };
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
+      const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
+      const vault = vaultStr ? JSON.parse(vaultStr) : {};
+      vault[emailLower] = { ...newUser, passwordHash: 'google-oauth' };
+      localStorage.setItem('gamerbox_accounts_vault', JSON.stringify(vault));
+    }
+    set({ user: newUser, isAuthLoading: false, authError: null });
+    return true;
+  },
+
+  deleteAccount: async () => {
+    const user = get().user;
+    if (!user) return false;
+
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('gamerbox_cached_user');
+      localStorage.removeItem('gamerbox-storage');
+      const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
+      if (vaultStr && user.email) {
+        const vault = JSON.parse(vaultStr);
+        delete vault[user.email.toLowerCase()];
+        localStorage.setItem('gamerbox_accounts_vault', JSON.stringify(vault));
+      }
+    }
+
+    if (isFirebaseConfigured && auth.currentUser) {
+      try {
+        await deleteDoc(doc(db, 'users', user.uid)).catch(() => {});
+        await auth.currentUser.delete().catch(() => {});
+      } catch (error) {
+        console.warn('Silent fallback on delete', error);
+      }
+    }
+
+    set({ user: null });
+    return true;
   },
 
   logout: async () => {

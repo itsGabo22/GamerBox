@@ -21,8 +21,8 @@ export const formatPrice = (usdAmount: number | string, currency: 'COP' | 'USD' 
   const num = typeof usdAmount === 'string' ? parseFloat(usdAmount.replace(/[^0-9.]/g, '')) || 19.99 : usdAmount;
 
   if (currency === 'COP') {
-    const cop = Math.round((num * 4200) / 100) * 100;
-    return '$' + cop.toLocaleString('es-CO') + ' COP';
+    const cop = Math.round(num * 3751.32);
+    return 'COL$ ' + cop.toLocaleString('es-CO');
   }
   if (currency === 'EUR') {
     return '€' + (num * 0.92).toFixed(2);

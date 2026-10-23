@@ -10,6 +10,8 @@ import { useTranslation } from '@/i18n/useTranslation';
 import { LogOut, Edit2, X, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
+import { useRouter } from 'next/navigation';
+
 const AVATAR_PRESETS = [
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230D0F18"/><circle cx="50" cy="50" r="30" fill="none" stroke="%23ff2a55" stroke-width="4"/><path d="M 30 50 L 70 50 M 50 30 L 50 70" stroke="%23ff2a55" stroke-width="4"/></svg>',
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230D0F18"/><polygon points="50,20 80,80 20,80" fill="none" stroke="%235ee6a8" stroke-width="4"/><circle cx="50" cy="60" r="10" fill="%235ee6a8"/></svg>',
@@ -19,10 +21,13 @@ const AVATAR_PRESETS = [
 
 export default function ProfilePage() {
   const games = useGameStore(state => state.games);
-  const { user, logout, updateUserProfile } = useAuthStore();
+  const { user, logout, deleteAccount, updateUserProfile } = useAuthStore();
+  const { clearLibrary } = useGameStore();
   const { t } = useTranslation();
+  const router = useRouter();
 
   const [isEditing, setIsEditing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [editForm, setEditForm] = useState({
     displayName: user?.displayName || '',
     title: user?.title || 'CYBER MERCENARY',
@@ -95,6 +100,12 @@ export default function ProfilePage() {
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleDeleteAccount = async () => {
+    await deleteAccount();
+    clearLibrary();
+    router.replace('/login');
   };
 
   return (
@@ -251,7 +262,7 @@ export default function ProfilePage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
-        className="mt-12 mb-8 px-4"
+        className="mt-12 mb-8 px-4 flex flex-col gap-3"
       >
         <button
           onClick={() => logout()}
@@ -260,7 +271,32 @@ export default function ProfilePage() {
           <LogOut size={16} />
           {t('profile.logout')}
         </button>
+        <button
+          onClick={() => setIsDeleting(true)}
+          className="w-full flex items-center justify-center gap-2 h-10 bg-transparent text-text-dim font-mono text-[10px] font-bold tracking-widest uppercase transition-all hover:text-neon-red"
+        >
+          🗑️ Eliminar Cuenta Permanentemente
+        </button>
       </motion.section>
+
+      {/* Delete Account Confirmation Modal */}
+      <AnimatePresence>
+        {isDeleting && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center px-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-obsidian-black/90 backdrop-blur-sm" onClick={() => setIsDeleting(false)} />
+            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} className="relative bg-obsidian-dark border border-neon-red/50 p-6 rounded-3xl w-full max-w-sm shadow-[0_0_30px_rgba(255,42,85,0.2)]">
+              <h3 className="font-heading font-bold text-xl text-white uppercase mb-3">⚠️ ¿Eliminar Cuenta?</h3>
+              <p className="font-body text-sm text-text-dim mb-6 leading-relaxed">
+                ¿Estás seguro de eliminar tu cuenta <span className="text-white font-bold">@{user?.displayName}</span>? Se borrarán tu bóveda de juegos, progreso y credenciales de forma <span className="text-neon-red-bright font-bold">irreversible</span>.
+              </p>
+              <div className="flex flex-col gap-3">
+                <Button variant="neon" className="w-full" onClick={handleDeleteAccount}>Sí, Eliminar Cuenta</Button>
+                <Button variant="ghost" className="w-full border border-surface-border text-text-dim hover:text-white" onClick={() => setIsDeleting(false)}>Cancelar</Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Edit Profile Modal */}
       <AnimatePresence>
