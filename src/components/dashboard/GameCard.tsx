@@ -8,6 +8,8 @@ import Link from 'next/link';
 
 import { Game } from '@/store/useGameStore';
 
+import { SafeGameImage } from '@/components/ui/SafeGameImage';
+
 interface GameCardProps {
   game: Game;
 }
@@ -33,19 +35,21 @@ export const GameCard = ({ game }: GameCardProps) => {
   };
 
   return (
-    <Link href={`/game/${game.id}`} className="block w-full">
+    <Link href={`/game/view?id=${game.id}`} className="block w-full">
       <motion.div
         whileTap={{ scale: 0.98 }}
         className="relative w-full aspect-[2/3] rounded-2xl overflow-hidden cursor-pointer group bg-obsidian-dark border border-surface-border transition-colors duration-300 md:hover:border-neon-red/50 md:hover:shadow-neon"
       >
       {/* Background Image Container */}
       <div className="absolute inset-0 overflow-hidden">
-        <div
-          className="w-full h-full bg-cover bg-center transition-transform duration-500 md:group-hover:scale-105"
-          style={{ backgroundImage: `url(${game.coverUrl})` }}
+        <SafeGameImage
+          src={game.coverUrl}
+          alt={game.title}
+          genre={game.genre}
+          className="w-full h-full object-cover transition-transform duration-500 md:group-hover:scale-105"
         />
         {/* Persistent Gradient Overlay for text legibility */}
-        <div className="absolute inset-0 bg-gradient-to-t from-obsidian-black via-obsidian-black/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-obsidian-black via-obsidian-black/40 to-transparent pointer-events-none" />
       </div>
 
       {/* Top Section: Status & Rating */}

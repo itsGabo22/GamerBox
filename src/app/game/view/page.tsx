@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useGameStore, Game } from '@/store/useGameStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,6 +8,7 @@ import { ArrowLeft, Clock, Trophy, Heart, Sparkles, Check, ChevronDown } from 'l
 import { Button } from '@/components/ui/Button';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { getGameTacticalBreakdown } from '@/services/aiService';
+import { SafeGameImage } from '@/components/ui/SafeGameImage';
 
 export default function GameViewPage() {
   const searchParams = useSearchParams();
@@ -27,6 +28,13 @@ export default function GameViewPage() {
 
   // Sync state if game is added to library while viewing
   const isInLibrary = !!localGame;
+
+  useEffect(() => {
+     if (gameToDisplay && !aiBreakdown && !isAiLoading) {
+         handleAiBreakdown();
+     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameToDisplay]);
 
   if (!gameToDisplay) {
     return (
@@ -67,9 +75,11 @@ export default function GameViewPage() {
     <div className="flex flex-col w-full min-h-screen bg-obsidian-black pb-24 relative overflow-x-hidden">
       {/* Hero Header */}
       <div className="relative w-full h-[55vh] min-h-[400px]">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${gameToDisplay.coverUrl})` }}
+        <SafeGameImage
+          src={gameToDisplay.coverUrl}
+          alt={gameToDisplay.title}
+          genre={gameToDisplay.genre}
+          className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-obsidian-black via-obsidian-black/80 to-transparent" />
 
