@@ -17,6 +17,22 @@ interface SettingsActions {
   closeSettings: () => void;
 }
 
+export const formatPrice = (usdAmount: number | string, currency: 'COP' | 'USD' | 'EUR' | 'MXN'): string => {
+  const num = typeof usdAmount === 'string' ? parseFloat(usdAmount.replace(/[^0-9.]/g, '')) || 19.99 : usdAmount;
+
+  if (currency === 'COP') {
+    const cop = Math.round((num * 4200) / 100) * 100;
+    return '$' + cop.toLocaleString('es-CO') + ' COP';
+  }
+  if (currency === 'EUR') {
+    return '€' + (num * 0.92).toFixed(2);
+  }
+  if (currency === 'MXN') {
+    return '$' + Math.round(num * 18.5).toLocaleString('es-MX') + ' MXN';
+  }
+  return '$' + num.toFixed(2) + ' USD';
+};
+
 export const useSettingsStore = create<SettingsState & SettingsActions>()(
   persist(
     (set) => ({

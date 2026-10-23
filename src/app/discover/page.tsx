@@ -9,6 +9,7 @@ import { getOracleRecommendations, AiRecommendation, analyzeSteamDeals } from '@
 import { fetchSteamDeals, searchGlobalGames, ApiGameDeal, ApiGameSearchResult } from '@/services/gameApiService';
 import { Button } from '@/components/ui/Button';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useSettingsStore, formatPrice } from '@/store/useSettingsStore';
 import { useRouter } from 'next/navigation';
 
 const GENRES = [
@@ -24,6 +25,7 @@ export default function DiscoverPage() {
   const addGame = useGameStore(state => state.addGame);
   const setSelectedGame = useGameStore(state => state.setSelectedGame);
   const { t, language } = useTranslation();
+  const { currency } = useSettingsStore();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeGenre, setActiveGenre] = useState('all');
@@ -349,8 +351,8 @@ export default function DiscoverPage() {
                     <div className="p-3 bg-obsidian-black border-t border-surface-border">
                       <h3 className="font-heading font-bold text-sm text-white line-clamp-1 mb-2">{deal.title}</h3>
                       <div className="flex items-center gap-2">
-                        <span className="text-text-dim text-xs line-through">${deal.normalPrice}</span>
-                        <span className="text-mint-green font-bold font-mono">${deal.salePrice}</span>
+                        <span className="text-text-dim text-xs line-through">{formatPrice(deal.normalPrice, currency)}</span>
+                        <span className="text-mint-green font-bold font-mono">{formatPrice(deal.salePrice, currency)}</span>
                       </div>
                     </div>
                   </div>

@@ -70,22 +70,23 @@ const withTimeout = <T>(promise: Promise<T>, ms = 3500): Promise<T> => {
   ]).finally(() => clearTimeout(timeoutId));
 };
 
+const getInitialCachedUser = (): UserProfile | null => {
+  if (typeof window !== 'undefined') {
+    const cached = localStorage.getItem('gamerbox_cached_user');
+    if (cached) return JSON.parse(cached);
+  }
+  return null;
+};
+
 export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
-  user: null,
-  isAuthLoading: true,
+  user: getInitialCachedUser(),
+  isAuthLoading: getInitialCachedUser() ? false : true,
   authError: null,
 
   initAuthListener: () => {
-    const cachedUser = typeof window !== 'undefined' ? localStorage.getItem('gamerbox_cached_user') : null;
-    if (cachedUser) {
-      set({ user: JSON.parse(cachedUser), isAuthLoading: false });
-    }
-
+    // If running strictly in demo mode, clear state if no cached user exists
     if (!isFirebaseConfigured) {
-      const demoUserStr = typeof window !== 'undefined' ? localStorage.getItem('demo_user') : null;
-      if (demoUserStr) {
-        set({ user: JSON.parse(demoUserStr), isAuthLoading: false });
-      } else if (!cachedUser) {
+      if (!getInitialCachedUser()) {
         set({ user: null, isAuthLoading: false });
       }
       return () => {};
@@ -111,8 +112,15 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         if (typeof window !== 'undefined') localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
         set({ user: newUser, isAuthLoading: false });
       } else {
-        if (typeof window !== 'undefined') localStorage.removeItem('gamerbox_cached_user');
-        set({ user: null, isAuthLoading: false });
+        // CRITICAL: DO NOT clear user if we have a valid cached user from a local vault sign-in!
+        const cached = getInitialCachedUser();
+        if (cached) {
+           console.warn('🔐 [GamerBox Auth] Firebase token missing but cached vault user found. Keeping session alive.');
+           set({ user: cached, isAuthLoading: false });
+        } else {
+           if (typeof window !== 'undefined') localStorage.removeItem('gamerbox_cached_user');
+           set({ user: null, isAuthLoading: false });
+        }
       }
     });
 
