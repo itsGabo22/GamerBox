@@ -37,7 +37,7 @@ export interface ApiGameSearchResult {
  */
 export const fetchSteamDeals = async (): Promise<ApiGameDeal[]> => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 2500);
+  const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 seconds timeout for real mobile!
 
   const fallbackDeals = GLOBAL_GAMES_CATALOG.filter(g => g.savingsPercent > 0).map(g => ({
     internalName: g.title,
@@ -62,7 +62,7 @@ export const fetchSteamDeals = async (): Promise<ApiGameDeal[]> => {
   }));
 
   try {
-    const response = await fetch('https://www.cheapshark.com/api/1.0/deals?storeID=1&upperPrice=50&pageSize=12&sortBy=Deal Rating', {
+    const response = await fetch('https://www.cheapshark.com/api/1.0/deals?storeID=1&upperPrice=50&pageSize=15&sortBy=Deal Rating', {
       signal: controller.signal
     });
     if (!response.ok) throw new Error('Network response was not ok');
@@ -71,9 +71,13 @@ export const fetchSteamDeals = async (): Promise<ApiGameDeal[]> => {
     return data.map(deal => ({
       ...deal,
       // Upgrade CheapShark low-res thumbs to high-res Steam headers if possible
-      thumb: deal.steamAppID
+      cover: deal.steamAppID
         ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${deal.steamAppID}/header.jpg`
-        : deal.thumb
+        : deal.thumb,
+      thumb: deal.thumb,
+      salePrice: deal.salePrice,
+      normalPrice: deal.normalPrice,
+      savings: Math.round(parseFloat(deal.savings)).toString()
     }));
   } catch (error) {
     console.warn('Error fetching Steam deals (using fallback):', error);

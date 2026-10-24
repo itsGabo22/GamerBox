@@ -42,7 +42,7 @@ export const SettingsModal = () => {
           className="relative w-full max-w-md bg-obsidian-dark border-t border-surface-border rounded-t-3xl sm:rounded-2xl sm:border flex flex-col max-h-[85vh] overflow-y-auto overflow-x-hidden shadow-[0_-20px_50px_rgba(0,0,0,0.5)]"
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-surface-border sticky top-0 bg-obsidian-dark/90 backdrop-blur-md z-10">
+          <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-2 sticky top-0 bg-obsidian-dark/90 backdrop-blur-md z-10 p-6">
             <h2 className="font-heading font-bold text-xl text-white tracking-wide uppercase">
               {t('settings.title')}
             </h2>
@@ -55,27 +55,24 @@ export const SettingsModal = () => {
             </button>
           </div>
 
-          <div className="p-6 flex flex-col gap-8">
+          <div className="flex flex-col gap-6 p-6 pt-0">
             {/* Language Selector */}
-            <section>
-              <div className="flex items-center gap-2 mb-4">
-                <Globe size={16} className="text-neon-red" />
-                <h3 className="font-mono text-xs font-bold tracking-widest text-text-dim uppercase">
-                  {t('settings.language')}
-                </h3>
-              </div>
+            <div className="flex flex-col gap-2 mt-2">
+              <span className="text-xs font-mono uppercase tracking-widest text-zinc-400">
+                {language === 'es' ? 'IDIOMA DEL SISTEMA' : 'SYSTEM LANGUAGE'}
+              </span>
               <div className="flex bg-surface-glass p-1 rounded-xl border border-surface-border relative">
                 <button
                   onClick={() => setLanguage('es')}
                   className={`flex-1 py-3 font-heading font-bold text-sm z-10 transition-colors ${language === 'es' ? 'text-white' : 'text-text-dim'}`}
                 >
-                  Español
+                  ESPAÑOL
                 </button>
                 <button
                   onClick={() => setLanguage('en')}
                   className={`flex-1 py-3 font-heading font-bold text-sm z-10 transition-colors ${language === 'en' ? 'text-white' : 'text-text-dim'}`}
                 >
-                  English
+                  ENGLISH
                 </button>
 
                 {/* Active Pill Indicator */}
@@ -87,7 +84,7 @@ export const SettingsModal = () => {
                   className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-obsidian-black rounded-lg shadow-glass border border-white/5"
                 />
               </div>
-            </section>
+            </div>
 
             {/* Currency Selector */}
             <section>

@@ -466,8 +466,7 @@ export default function DiscoverPage() {
           )
         )}
       </section>
-      {/* Custom Game Button */}
-      <div className="flex justify-center mt-6">
+      <div className="flex justify-center mt-6 pb-32">
         <Button variant="ghost" onClick={() => setShowAddModal(true)} className="border border-surface-border">
           + Registrar Juego Nuevo
         </Button>

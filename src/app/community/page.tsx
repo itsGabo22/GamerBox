@@ -18,6 +18,34 @@ export default function CommunityPage() {
   const [activeTab, setActiveTab] = useState('para-ti');
   const [searchFriend, setSearchFriend] = useState('');
 
+  // Add the explicit friend action
+  const handleAddFriendByTag = (tag: string) => {
+    // Check if friend already exists in mock data or local vault
+    const existingFriend = friends.find(f => f.gamertag.toLowerCase() === tag.toLowerCase());
+
+    if (existingFriend) {
+      addFriend(existingFriend.uid);
+    } else {
+      // Mock adding a user from vault/firestore dynamically
+      const newFriendUid = `dyn-${Date.now()}`;
+      // In a real app, this would dispatch to store and Firestore
+      useCommunityStore.setState((state) => ({
+        friends: [
+          ...state.friends,
+          {
+            uid: newFriendUid,
+            gamertag: tag,
+            title: 'NUEVO RECLUTA',
+            photoURL: null,
+            status: 'ONLINE',
+            isFriend: true
+          }
+        ]
+      }));
+    }
+    setSearchFriend('');
+  };
+
   // Create Post Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPost, setNewPost] = useState({ gameTitle: '', rating: 5, content: '' });
@@ -267,6 +295,26 @@ export default function CommunityPage() {
                 className="w-full h-14 pl-12 pr-4 bg-surface-glass backdrop-blur-xl border border-surface-border rounded-2xl text-white placeholder:text-text-dim focus:outline-none focus:border-neon-red focus:ring-1 focus:ring-neon-red transition-all shadow-glass font-mono text-sm"
               />
             </div>
+
+            {searchFriend.trim().length > 0 && (
+              <div className="mt-4 p-4 rounded-xl border border-neon-red/40 bg-obsidian-black flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-neon-red/20 border border-neon-red flex items-center justify-center font-bold text-neon-red uppercase">
+                    {searchFriend.trim().slice(0, 2)}
+                  </div>
+                  <div>
+                    <p className="font-bold text-white">@{searchFriend.trim()}</p>
+                    <p className="text-xs text-mint-green font-mono">JUGADOR ENCONTRADO // ONLINE</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleAddFriendByTag(searchFriend.trim())}
+                  className="px-4 py-2 rounded-lg bg-neon-red text-white text-xs font-bold uppercase tracking-wider shadow-neon"
+                >
+                  + AGREGAR
+                </button>
+              </div>
+            )}
 
             {/* My Squad */}
             <section>

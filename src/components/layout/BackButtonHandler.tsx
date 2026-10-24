@@ -1,46 +1,42 @@
 'use client';
 
 import { useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useSettingsStore } from '@/store/useSettingsStore';
 
 export const BackButtonHandler = () => {
+  const router = useRouter();
   const pathname = usePathname();
   const closeSettings = useSettingsStore(state => state.closeSettings);
   const isSettingsOpen = useSettingsStore(state => state.isSettingsOpen);
 
   useEffect(() => {
-    const handleBackButton = (e: PopStateEvent) => {
-      // If settings are open, close them and prevent default back behavior
+    const handleNativeBack = (e: Event) => {
+      // If a global modal is open, close it and prevent navigation
       if (isSettingsOpen) {
         e.preventDefault();
         closeSettings();
-        // pushState so the next back button press doesn't exit immediately
-        window.history.pushState(null, '', window.location.pathname);
         return;
       }
 
-      // If we are not on the home page, let the router handle it
+      // If we are deep in the app, let the custom event handler block exit
+      // and do a Next.js router.back() or router.push('/') to ensure clean state
       if (pathname !== '/' && pathname !== '/login') {
-        // Native back behavior is fine, or we could router.back()
-        return;
+        e.preventDefault();
+        router.back();
       }
-
-      // If we are on home/login, native back will exit the app (expected behavior on Android)
     };
 
-    // Push an initial state so the first back button press triggers popstate
     if (typeof window !== 'undefined') {
-       window.history.pushState(null, '', window.location.pathname);
-       window.addEventListener('popstate', handleBackButton);
+      window.addEventListener('gamerbox-back-press', handleNativeBack);
     }
 
     return () => {
       if (typeof window !== 'undefined') {
-        window.removeEventListener('popstate', handleBackButton);
+        window.removeEventListener('gamerbox-back-press', handleNativeBack);
       }
     };
-  }, [pathname, isSettingsOpen, closeSettings]);
+  }, [pathname, isSettingsOpen, closeSettings, router]);
 
   return null;
 };

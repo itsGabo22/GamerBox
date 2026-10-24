@@ -38,7 +38,23 @@ export default function GameViewPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameToDisplay]);
 
-  if (!gameToDisplay) {
+  // Make sure we save it to session storage to persist across reloads
+  useEffect(() => {
+    if (gameToDisplay && typeof window !== 'undefined') {
+      sessionStorage.setItem('gamerbox_active_game', JSON.stringify(gameToDisplay));
+    }
+  }, [gameToDisplay]);
+
+  // Fallback to read from session storage if state lost
+  let finalGame = gameToDisplay;
+  if (!finalGame && typeof window !== 'undefined') {
+    const saved = sessionStorage.getItem('gamerbox_active_game');
+    if (saved) {
+      finalGame = JSON.parse(saved);
+    }
+  }
+
+  if (!finalGame) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-white">
         <p className="font-mono text-xs uppercase tracking-widest text-text-dim">Juego no encontrado</p>
@@ -52,7 +68,7 @@ export default function GameViewPage() {
   const handleAiBreakdown = async () => {
     setIsAiLoading(true);
     try {
-      const breakdown = await getGameTacticalBreakdown(gameToDisplay.title);
+      const breakdown = await getGameTacticalBreakdown(finalGame!.title);
       setAiBreakdown(breakdown);
     } finally {
       setIsAiLoading(false);
@@ -61,14 +77,14 @@ export default function GameViewPage() {
 
   const handleAddHours = () => {
     if (isInLibrary) {
-      logPlaySession(gameToDisplay.id, hoursToAdd);
+      logPlaySession(finalGame!.id, hoursToAdd);
       setHoursToAdd(1);
     }
   };
 
   const handleChangeStatus = (status: string) => {
     if (isInLibrary) {
-      updateGameStatus(gameToDisplay.id, status);
+      updateGameStatus(finalGame!.id, status);
       setShowStatusDropdown(false);
     }
   };
@@ -78,9 +94,9 @@ export default function GameViewPage() {
       {/* Hero Header */}
       <div className="relative w-full h-[55vh] min-h-[400px]">
         <SafeGameImage
-          src={gameToDisplay.coverUrl}
-          alt={gameToDisplay.title}
-          genre={gameToDisplay.genre}
+          src={finalGame.coverUrl}
+          alt={finalGame.title}
+          genre={finalGame.genre}
           className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-obsidian-black via-obsidian-black/80 to-transparent" />
@@ -96,10 +112,10 @@ export default function GameViewPage() {
 
           {isInLibrary && (
             <button
-              onClick={() => toggleFavorite(gameToDisplay.id)}
+              onClick={() => toggleFavorite(finalGame!.id)}
               className="w-10 h-10 rounded-full bg-obsidian-black/50 backdrop-blur-md flex items-center justify-center border border-white/10"
             >
-              <Heart size={20} className={gameToDisplay.isFavorite ? "fill-neon-red text-neon-red" : "text-white"} />
+              <Heart size={20} className={finalGame!.isFavorite ? "fill-neon-red text-neon-red" : "text-white"} />
             </button>
           )}
         </div>
@@ -112,7 +128,7 @@ export default function GameViewPage() {
                 onClick={() => setShowStatusDropdown(!showStatusDropdown)}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-glass border border-surface-border text-white font-mono text-[10px] font-bold uppercase tracking-widest shadow-glass hover:bg-surface-glass-hover transition-colors"
               >
-                {gameToDisplay.status}
+                {finalGame.status}
                 <ChevronDown size={12} />
               </button>
 
@@ -135,7 +151,7 @@ export default function GameViewPage() {
                         className="px-3 py-2 text-left font-mono text-[10px] text-text-dim hover:text-white hover:bg-white/5 transition-colors uppercase tracking-widest flex items-center justify-between"
                       >
                         {s.label}
-                        {gameToDisplay.status === s.key && <Check size={12} className="text-neon-red" />}
+                        {finalGame!.status === s.key && <Check size={12} className="text-neon-red" />}
                       </button>
                     ))}
                   </motion.div>
@@ -145,15 +161,15 @@ export default function GameViewPage() {
           )}
 
           <h1 className="font-heading font-black text-4xl text-white mb-2 leading-tight drop-shadow-md">
-            {gameToDisplay.title}
+            {finalGame.title}
           </h1>
 
           <div className="flex flex-wrap items-center gap-3">
             <span className="px-2 py-1 rounded bg-white/10 backdrop-blur-sm text-white font-mono text-[10px] font-bold uppercase tracking-wider">
-              {gameToDisplay.platform}
+              {finalGame.platform}
             </span>
             <span className="px-2 py-1 rounded bg-white/10 backdrop-blur-sm text-text-dim font-mono text-[10px] uppercase tracking-wider">
-              {gameToDisplay.genre}
+              {finalGame.genre}
             </span>
           </div>
         </div>
@@ -169,7 +185,7 @@ export default function GameViewPage() {
               variant="neon"
               className="w-full"
               onClick={() => {
-                addGame(gameToDisplay);
+                addGame(finalGame!);
                 router.replace('/backlog'); // Navigate to backlog after adding
               }}
             >
@@ -183,7 +199,7 @@ export default function GameViewPage() {
                 <Clock size={20} className="text-mint-green" />
                 <div>
                   <p className="font-mono text-[10px] text-text-dim uppercase tracking-widest">Tiempo Jugado</p>
-                  <p className="font-heading font-bold text-xl text-white">{gameToDisplay.hoursPlayed || 0} hrs</p>
+                  <p className="font-heading font-bold text-xl text-white">{finalGame.hoursPlayed || 0} hrs</p>
                 </div>
               </div>
 
@@ -210,12 +226,12 @@ export default function GameViewPage() {
               <div className="flex-1">
                 <div className="flex justify-between items-end mb-1">
                   <p className="font-mono text-[10px] text-text-dim uppercase tracking-widest">Progreso / Trofeos</p>
-                  <p className="font-mono text-xs font-bold text-white">{gameToDisplay.progress || 0}%</p>
+                  <p className="font-mono text-xs font-bold text-white">{finalGame.progress || 0}%</p>
                 </div>
                 <div className="h-1.5 w-full bg-obsidian-black rounded-full overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${gameToDisplay.progress || 0}%` }}
+                    animate={{ width: `${finalGame.progress || 0}%` }}
                     className="h-full bg-neon-red"
                   />
                 </div>
