@@ -229,10 +229,17 @@ export const useCommunityStore = create<CommunityState & CommunityActions>()(
     }),
     {
       name: 'gamerbox-community-storage',
-      storage: createJSONStorage(() => typeof window !== 'undefined' ? localStorage : {
-        getItem: () => null,
-        setItem: () => {},
-        removeItem: () => {},
+      // Dynamic storage key based on active user to isolate friends
+      storage: createJSONStorage(() => {
+        if (typeof window === 'undefined') return { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+        const userStr = localStorage.getItem('gamerbox_cached_user');
+        const uid = userStr ? JSON.parse(userStr).uid : 'guest';
+
+        return {
+          getItem: (name) => localStorage.getItem(`${name}_${uid}`),
+          setItem: (name, value) => localStorage.setItem(`${name}_${uid}`, value),
+          removeItem: (name) => localStorage.removeItem(`${name}_${uid}`)
+        };
       })
     }
   )

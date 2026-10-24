@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Gamepad2, PenLine, Search, UserPlus, Zap, X } from 'lucide-react';
+import { Gamepad2, PenLine, Search, UserPlus, Zap, X, Trophy, Clock } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
-import { useCommunityStore, CommunityPost } from '@/store/useCommunityStore';
+import { useCommunityStore, CommunityPost, FriendProfile } from '@/store/useCommunityStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { Star, MessageCircle, Heart, Send } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,8 +16,10 @@ const TABS = [
 
 export default function CommunityPage() {
   const { posts, friends, fetchPosts, addPost, toggleLike, addComment, addFriend, removeFriend } = useCommunityStore();
+  const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('para-ti');
   const [searchFriend, setSearchFriend] = useState('');
+  const [inspectProfile, setInspectProfile] = useState<FriendProfile | null>(null);
 
   // Add the explicit friend action
   const handleAddFriendByTag = (tag: string) => {
@@ -26,9 +29,12 @@ export default function CommunityPage() {
     if (existingFriend) {
       addFriend(existingFriend.uid);
     } else {
-      // Mock adding a user from vault/firestore dynamically
+      // Create dynamically but strictly ignore self
+      if (user?.displayName?.toLowerCase() === tag.toLowerCase()) {
+         return; // prevent self adding
+      }
+
       const newFriendUid = `dyn-${Date.now()}`;
-      // In a real app, this would dispatch to store and Firestore
       useCommunityStore.setState((state) => ({
         friends: [
           ...state.friends,
@@ -328,7 +334,7 @@ export default function CommunityPage() {
                   </div>
                 ) : (
                   friends.filter(f => f.isFriend).map(friend => (
-                    <GlassPanel key={friend.uid} className="p-4 flex items-center justify-between">
+                    <GlassPanel key={friend.uid} onClick={() => setInspectProfile(friend)} className="p-4 flex items-center justify-between cursor-pointer">
                       <div className="flex gap-3 items-center">
                         <div className="relative">
                           <div
@@ -355,10 +361,10 @@ export default function CommunityPage() {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Button variant="ghost" size="sm" className="h-8 px-2 border-surface-border" onClick={() => removeFriend(friend.uid)}>
+                        <Button variant="ghost" size="sm" className="h-8 px-2 border-surface-border" onClick={(e) => { e.stopPropagation(); removeFriend(friend.uid); }}>
                           <X size={14} />
                         </Button>
-                        <Button variant="secondary" size="sm" className="h-8 px-3 border-mint-green/30 text-mint-green hover:bg-mint-green/10 flex gap-2">
+                        <Button variant="secondary" size="sm" className="h-8 px-3 border-mint-green/30 text-mint-green hover:bg-mint-green/10 flex gap-2" onClick={(e) => { e.stopPropagation(); }}>
                           <Zap size={14} /> Invitar
                         </Button>
                       </div>
@@ -374,8 +380,8 @@ export default function CommunityPage() {
                 COMUNIDAD / SUGERENCIAS
               </h2>
               <div className="flex flex-col gap-3">
-                {friends.filter(f => !f.isFriend && (searchFriend === '' || f.gamertag.toLowerCase().includes(searchFriend.toLowerCase()))).map(friend => (
-                  <GlassPanel key={friend.uid} className="p-4 flex items-center justify-between opacity-80 hover:opacity-100 transition-opacity">
+                {friends.filter(f => !f.isFriend && (searchFriend === '' || f.gamertag.toLowerCase().includes(searchFriend.toLowerCase())) && f.gamertag.toLowerCase() !== user?.displayName?.toLowerCase()).map(friend => (
+                  <GlassPanel key={friend.uid} onClick={() => setInspectProfile(friend)} className="p-4 flex items-center justify-between opacity-80 hover:opacity-100 transition-opacity cursor-pointer">
                     <div className="flex gap-3 items-center">
                       <div
                         className="w-10 h-10 rounded-full bg-obsidian-dark flex-shrink-0 flex items-center justify-center border border-surface-border bg-cover bg-center"
@@ -392,13 +398,70 @@ export default function CommunityPage() {
                         <p className="font-mono text-[9px] text-text-dim tracking-widest uppercase">{friend.title}</p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" className="h-8 px-3 border-neon-red/30 text-neon-red-bright hover:bg-neon-red/10 flex gap-2" onClick={() => addFriend(friend.uid)}>
+                    <Button variant="ghost" size="sm" className="h-8 px-3 border-neon-red/30 text-neon-red-bright hover:bg-neon-red/10 flex gap-2" onClick={(e) => { e.stopPropagation(); addFriend(friend.uid); }}>
                       <UserPlus size={14} /> Agregar
                     </Button>
                   </GlassPanel>
                 ))}
               </div>
             </section>
+            {/* Profile Inspector Modal */}
+            <AnimatePresence>
+              {inspectProfile && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setInspectProfile(null)} />
+                  <motion.div initial={{ y: 20, opacity: 0, scale: 0.95 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 20, opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-zinc-950/90 backdrop-blur-2xl border border-white/15 p-6 rounded-3xl shadow-[0_0_50px_rgba(255,42,85,0.1)]">
+                    <div className="flex flex-col items-center mb-6">
+                      <div className="relative mb-3">
+                        <div
+                          className="w-20 h-20 rounded-full bg-obsidian-dark flex items-center justify-center border-2 border-neon-red shadow-[0_0_15px_rgba(255,42,85,0.3)] bg-cover bg-center"
+                          style={{ backgroundImage: inspectProfile.photoURL ? `url(${inspectProfile.photoURL})` : 'none' }}
+                        >
+                          {!inspectProfile.photoURL && (
+                            <span className="font-heading font-black text-2xl text-neon-red-bright uppercase">
+                              {inspectProfile.gamertag.substring(0, 2)}
+                            </span>
+                          )}
+                        </div>
+                        <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-zinc-950 ${inspectProfile.status === 'ONLINE' ? 'bg-mint-green' : inspectProfile.status === 'IN_GAME' ? 'bg-neon-red' : 'bg-surface-border'}`} />
+                      </div>
+                      <h3 className="font-heading font-black text-xl text-white uppercase">{inspectProfile.gamertag}</h3>
+                      <p className="font-mono text-[10px] text-text-dim uppercase tracking-widest">{inspectProfile.title}</p>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 mb-6">
+                      <div className="bg-obsidian-black border border-surface-border rounded-xl p-3 flex flex-col items-center">
+                        <Trophy size={14} className="text-mint-green mb-1" />
+                        <span className="font-heading font-bold text-white text-sm">24</span>
+                        <span className="font-mono text-[8px] text-text-dim uppercase tracking-widest">Nivel</span>
+                      </div>
+                      <div className="bg-obsidian-black border border-surface-border rounded-xl p-3 flex flex-col items-center">
+                        <Star size={14} className="text-neon-red mb-1" />
+                        <span className="font-heading font-bold text-white text-sm">12</span>
+                        <span className="font-mono text-[8px] text-text-dim uppercase tracking-widest">Platinos</span>
+                      </div>
+                      <div className="bg-obsidian-black border border-surface-border rounded-xl p-3 flex flex-col items-center">
+                        <Clock size={14} className="text-white/50 mb-1" />
+                        <span className="font-heading font-bold text-white text-sm">340h</span>
+                        <span className="font-mono text-[8px] text-text-dim uppercase tracking-widest">Jugadas</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                      {inspectProfile.isFriend ? (
+                        <>
+                          <Button variant="neon" className="w-full h-12 flex gap-2"><Zap size={16}/> INVITAR A PARTIDA</Button>
+                          <Button variant="ghost" className="w-full h-12 border border-surface-border text-text-dim hover:text-white" onClick={() => { removeFriend(inspectProfile.uid); setInspectProfile(null); }}>ELIMINAR DE MI ESCUADRÓN</Button>
+                        </>
+                      ) : (
+                        <Button variant="neon" className="w-full h-12 flex gap-2" onClick={() => { addFriend(inspectProfile.uid); setInspectProfile(null); }}><UserPlus size={16}/> AGREGAR A MI ESCUADRÓN</Button>
+                      )}
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
+
           </motion.div>
         )}
       </AnimatePresence>

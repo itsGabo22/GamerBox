@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useGameStore, Game } from '@/store/useGameStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Clock, Trophy, Heart, Sparkles, Check, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Clock, Trophy, Heart, Sparkles, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { getGameTacticalBreakdown } from '@/services/aiService';
@@ -19,8 +19,9 @@ export default function GameViewPage() {
 
   const { selectedGame, games, addGame, updateGameStatus, toggleFavorite, logPlaySession } = useGameStore();
 
-  const [aiBreakdown, setAiBreakdown] = useState<{ synopsis: string; matchReason: string; tips: string; timeToBeat: string } | null>(null);
+  const [aiBreakdown, setAiBreakdown] = useState<{ synopsis: string; matchReason: string; tips: string[]; timeToBeat: string; difficulty: string } | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [showDossierModal, setShowDossierModal] = useState(false);
   const [hoursToAdd, setHoursToAdd] = useState(1);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
@@ -165,10 +166,10 @@ export default function GameViewPage() {
           </h1>
 
           <div className="flex flex-wrap items-center gap-3">
-            <span className="px-2 py-1 rounded bg-white/10 backdrop-blur-sm text-white font-mono text-[10px] font-bold uppercase tracking-wider">
+            <span className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white font-mono text-[10px] font-bold uppercase tracking-wider">
               {finalGame.platform}
             </span>
-            <span className="px-2 py-1 rounded bg-white/10 backdrop-blur-sm text-text-dim font-mono text-[10px] uppercase tracking-wider">
+            <span className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-text-dim font-mono text-[10px] uppercase tracking-wider">
               {finalGame.genre}
             </span>
           </div>
@@ -245,7 +246,7 @@ export default function GameViewPage() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-text-dim flex items-center gap-2">
               <Sparkles size={14} className="text-mint-green" />
-              GamerBox AI
+              GAMERBOX AI
             </h2>
           </div>
 
@@ -274,37 +275,111 @@ export default function GameViewPage() {
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
-              className="flex flex-col gap-3"
+              className="flex flex-col gap-3 bg-zinc-900/70 backdrop-blur-xl border border-white/10 rounded-2xl p-5 shadow-2xl"
             >
-              <GlassPanel className="p-5 border-l-2 border-l-mint-green">
+              <div className="border-l-2 border-l-mint-green pl-3">
                 <p className="font-mono text-[10px] text-mint-green uppercase font-bold tracking-widest mb-2">Sinopsis</p>
-                <p className="font-body text-sm text-white/90 leading-relaxed text-pretty">
+                <p className="font-body text-sm text-white/90 leading-relaxed text-pretty line-clamp-3">
                   {aiBreakdown?.synopsis}
                 </p>
-              </GlassPanel>
-
-              <div className="grid grid-cols-2 gap-3">
-                <GlassPanel className="p-4">
-                  <p className="font-mono text-[10px] text-text-dim uppercase font-bold tracking-widest mb-1">Time to Beat</p>
-                  <p className="font-heading text-lg font-bold text-white">{aiBreakdown?.timeToBeat}</p>
-                </GlassPanel>
-                <GlassPanel className="p-4 bg-neon-red/10 border-neon-red/30">
-                  <p className="font-mono text-[10px] text-neon-red-bright uppercase font-bold tracking-widest mb-1">Pro Tip</p>
-                  <p className="font-body text-xs text-white/90 line-clamp-2">{aiBreakdown?.tips}</p>
-                </GlassPanel>
               </div>
 
-              <GlassPanel className="p-5">
-                <p className="font-mono text-[10px] text-text-dim uppercase font-bold tracking-widest mb-2">Por qué te gustará</p>
-                <p className="font-body text-sm text-white/80 italic text-pretty">
-                  &quot;{aiBreakdown?.matchReason}&quot;
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <div className="bg-obsidian-dark border border-surface-border rounded-xl p-3">
+                  <p className="font-mono text-[10px] text-text-dim uppercase font-bold tracking-widest mb-1">Tiempo Estimado</p>
+                  <p className="font-heading text-sm font-bold text-white line-clamp-1">{aiBreakdown?.timeToBeat}</p>
+                </div>
+                <div className="bg-obsidian-dark border border-surface-border rounded-xl p-3">
+                  <p className="font-mono text-[10px] text-text-dim uppercase font-bold tracking-widest mb-1">Dificultad</p>
+                  <p className="font-heading text-sm font-bold text-white line-clamp-1">{aiBreakdown?.difficulty}</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowDossierModal(true)}
+                className="mt-2 group relative overflow-hidden rounded-xl bg-neon-red/10 border border-neon-red/30 p-4 text-left hover:bg-neon-red/20 transition-colors"
+              >
+                <p className="font-mono text-[10px] text-neon-red-bright uppercase font-bold tracking-widest mb-1 flex items-center justify-between">
+                  PRO TIPS TÁCTICOS
+                  <ChevronRight size={14} className="text-neon-red-bright transform group-hover:translate-x-1 transition-transform" />
                 </p>
-              </GlassPanel>
+                <p className="font-body text-xs text-white/90 line-clamp-1 italic">
+                  {aiBreakdown?.tips[0]}
+                </p>
+                <div className="absolute top-0 right-0 p-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                   <Sparkles size={16} className="text-neon-red-bright" />
+                </div>
+              </button>
             </motion.div>
           )}
         </section>
 
       </div>
+
+      {/* Dossier Táctico Modal */}
+      <AnimatePresence>
+        {showDossierModal && aiBreakdown && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowDossierModal(false)} />
+            <motion.div
+              initial={{ y: 20, opacity: 0, scale: 0.95 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 20, opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-lg bg-zinc-950/90 backdrop-blur-2xl border border-neon-red/30 rounded-3xl p-6 shadow-[0_0_50px_rgba(255,42,85,0.15)] max-h-[85vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-6 sticky top-0 bg-zinc-950/90 py-2 z-10 border-b border-surface-border">
+                <div>
+                  <h3 className="font-heading font-black text-xl text-white uppercase leading-tight">{finalGame.title}</h3>
+                  <p className="font-mono text-[10px] text-neon-red-bright tracking-widest uppercase flex items-center gap-1 mt-1">
+                    <Sparkles size={10} /> DOSSIER TÁCTICO GAMERBOX AI
+                  </p>
+                </div>
+                <button onClick={() => setShowDossierModal(false)} className="w-8 h-8 rounded-full bg-surface-glass flex items-center justify-center text-text-dim hover:text-white transition-colors">
+                  <ArrowLeft size={16} />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-6">
+                <div>
+                  <h4 className="font-mono text-[10px] text-text-dim uppercase font-bold tracking-widest mb-2 border-b border-surface-border pb-1">Análisis General</h4>
+                  <p className="font-body text-sm text-white/90 leading-relaxed text-pretty mb-3">
+                    {aiBreakdown.synopsis}
+                  </p>
+                  <p className="font-body text-sm text-mint-green/90 italic leading-relaxed text-pretty border-l-2 border-mint-green pl-3">
+                    &quot;{aiBreakdown.matchReason}&quot;
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className="font-mono text-[10px] text-text-dim uppercase font-bold tracking-widest mb-3 border-b border-surface-border pb-1">Estrategia Avanzada</h4>
+                  <div className="flex flex-col gap-3">
+                    {aiBreakdown.tips.map((tip, idx) => (
+                      <div key={idx} className="flex gap-3 bg-obsidian-black border border-surface-border rounded-xl p-4">
+                        <span className="font-heading font-black text-2xl text-neon-red/30 leading-none">0{idx + 1}</span>
+                        <p className="font-body text-sm text-white/90 leading-relaxed pt-1">
+                          {tip}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mt-2">
+                  <div className="bg-surface-glass border border-surface-border rounded-xl p-4 text-center">
+                    <p className="font-mono text-[10px] text-text-dim uppercase font-bold tracking-widest mb-1">Duración</p>
+                    <p className="font-heading text-base font-bold text-white">{aiBreakdown.timeToBeat}</p>
+                  </div>
+                  <div className="bg-surface-glass border border-surface-border rounded-xl p-4 text-center">
+                    <p className="font-mono text-[10px] text-text-dim uppercase font-bold tracking-widest mb-1">Dificultad</p>
+                    <p className="font-heading text-base font-bold text-white">{aiBreakdown.difficulty}</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

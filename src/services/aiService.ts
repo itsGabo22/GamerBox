@@ -43,21 +43,43 @@ const FALLBACK_RECOMMENDATIONS: AiRecommendation[] = [
 export const getGameTacticalBreakdown = async (
   gameTitle: string,
   language: string = 'es'
-): Promise<{ synopsis: string; matchReason: string; tips: string; timeToBeat: string }> => {
+): Promise<{ synopsis: string; matchReason: string; tips: string[]; timeToBeat: string; difficulty: string }> => {
   const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-  if (!apiKey) return { synopsis: 'Información no disponible', matchReason: 'N/A', tips: 'Juega a tu ritmo', timeToBeat: '?? hrs' };
+
+  const fallbackData = () => {
+    const catalogData = getGameCatalogData(gameTitle);
+    if (catalogData) {
+      return {
+        synopsis: catalogData.synopsis,
+        matchReason: catalogData.whyYouWillLikeIt,
+        tips: [catalogData.proTip, 'Explora todos los rincones del mapa.', 'Domina las mecánicas defensivas.'],
+        timeToBeat: catalogData.timeToBeat,
+        difficulty: 'Media / Alta'
+      };
+    }
+    return {
+      synopsis: 'Explora un mundo increíble lleno de desafíos tácticos y una narrativa profunda.',
+      matchReason: 'Combate dinámico y excelente progresión que se adapta a tu estilo.',
+      tips: ['Revisa tu equipamiento y recursos antes de cada misión.', 'Aprende los patrones de los enemigos.', 'No dudes en retroceder si la situación lo requiere.'],
+      timeToBeat: '20h - 40h',
+      difficulty: 'Media'
+    };
+  };
+
+  if (!apiKey) return fallbackData();
 
   const prompt = `You are a hardcore gamer AI. Provide a tactical breakdown for the game "${gameTitle}".
   Respond ONLY with a valid JSON object. Do not use markdown like \`\`\`json.
   Keys required:
   "synopsis" (Brief lore/overview),
   "matchReason" (Why a hardcore gamer would like it),
-  "tips" (One pro tip for beginners),
-  "timeToBeat" (Estimated hours, e.g. "45 hrs").
+  "tips" (Array of exactly 3 distinct strings: Tip 1: Early-game resource/build optimization, Tip 2: Combat/tactical positioning mechanic, Tip 3: Secret/Endgame/Mastery progression advice),
+  "timeToBeat" (Estimated hours, e.g. "45h Campaña / 90h Completista"),
+  "difficulty" (e.g. "Alta", "Media").
   WRITE EVERYTHING IN ${language === 'es' ? 'SPANISH' : 'ENGLISH'}.`;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6000);
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
 
   try {
     let response = await fetch(
@@ -88,16 +110,7 @@ export const getGameTacticalBreakdown = async (
     textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(textResult);
   } catch {
-    const catalogData = getGameCatalogData(gameTitle);
-    if (catalogData) {
-      return {
-        synopsis: catalogData.synopsis,
-        matchReason: catalogData.whyYouWillLikeIt,
-        tips: catalogData.proTip,
-        timeToBeat: catalogData.timeToBeat
-      };
-    }
-    return { synopsis: 'Explora un mundo increíble lleno de desafíos tácticos y una narrativa profunda.', matchReason: 'Combate dinámico y excelente progresión que se adapta a tu estilo.', tips: 'Revisa tu equipamiento y recursos antes de cada misión.', timeToBeat: '20h - 40h' };
+    return fallbackData();
   } finally {
     clearTimeout(timeoutId);
   }

@@ -35,7 +35,8 @@ export const SafeGameImage: React.FC<SafeGameImageProps> = ({ src, alt, genre = 
     <img
       src={src}
       alt={alt}
-      className={className}
+      className={`${className} object-cover object-center`}
+      style={{ imageRendering: 'auto' }}
       onError={() => setError(true)}
       {...props}
     />

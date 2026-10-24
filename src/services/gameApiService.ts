@@ -32,9 +32,15 @@ export interface ApiGameSearchResult {
   thumb: string;
 }
 
-/**
- * Fetch live Steam Deals using CheapShark API (Store 1 = Steam)
- */
+export const getHighResSteamCover = (steamAppID?: string, fallbackThumb?: string): string => {
+  if (steamAppID) {
+    return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${steamAppID}/library_600x900.jpg`;
+  }
+  if (fallbackThumb) {
+    return fallbackThumb.replace(/capsule_sm_120\.jpg|capsule_184x69\.jpg/i, 'header.jpg');
+  }
+  return '';
+};
 export const fetchSteamDeals = async (): Promise<ApiGameDeal[]> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 seconds timeout for real mobile!
@@ -73,8 +79,8 @@ export const fetchSteamDeals = async (): Promise<ApiGameDeal[]> => {
       // Upgrade CheapShark low-res thumbs to high-res Steam headers if possible
       cover: deal.steamAppID
         ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${deal.steamAppID}/header.jpg`
-        : deal.thumb,
-      thumb: deal.thumb,
+        : getHighResSteamCover(deal.steamAppID, deal.thumb),
+      thumb: getHighResSteamCover(deal.steamAppID, deal.thumb),
       salePrice: deal.salePrice,
       normalPrice: deal.normalPrice,
       savings: Math.round(parseFloat(deal.savings)).toString()
@@ -102,9 +108,7 @@ export const searchGlobalGames = async (query: string): Promise<ApiGameSearchRes
     clearTimeout(timeoutId);
     return data.map(game => ({
       ...game,
-      thumb: game.steamAppID
-        ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${game.steamAppID}/header.jpg`
-        : game.thumb
+      thumb: getHighResSteamCover(game.steamAppID, game.thumb)
     }));
   } catch (error) {
     console.warn('Error searching games (falling back to local catalog):', error);
