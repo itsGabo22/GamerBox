@@ -19,6 +19,33 @@ export default function LoginPage() {
   const [googleEmail, setGoogleEmail] = useState('');
   const [googleName, setGoogleName] = useState('');
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [savedAccounts, setSavedAccounts] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
+      if (vaultStr) {
+        const vault = JSON.parse(vaultStr);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setSavedAccounts(Object.values(vault).filter((acc: any) => acc.email?.endsWith('@gmail.com')));
+      }
+    }
+  }, []);
+
+  const handleSavedAccountSignIn = async (email: string, name: string) => {
+    setIsLoading(true);
+    try {
+      const success = await signInWithGoogleAccount(email, name);
+      if (success) {
+        setShowGoogleSheet(false);
+        router.replace('/');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -255,6 +282,24 @@ export default function LoginPage() {
             >
               <h3 className="font-heading font-bold text-lg text-white mb-2 text-center">Elige una cuenta para continuar</h3>
               <p className="font-body text-xs text-text-dim text-center mb-6">para continuar en GamerBox</p>
+
+              <div className="flex flex-col gap-3 mb-4 max-h-[30vh] overflow-y-auto">
+                {savedAccounts.map(acc => (
+                   <button
+                     key={acc.email}
+                     onClick={() => handleSavedAccountSignIn(acc.email, acc.displayName)}
+                     className="w-full flex items-center gap-3 p-3 rounded-xl bg-obsidian-black border border-surface-border hover:bg-white/5 transition-colors"
+                   >
+                     <div className="w-10 h-10 rounded-full bg-neon-red/20 flex items-center justify-center font-heading font-bold text-neon-red-bright uppercase">
+                       {acc.displayName?.substring(0, 2) || 'G'}
+                     </div>
+                     <div className="flex flex-col text-left">
+                       <span className="font-heading font-bold text-sm text-white">{acc.displayName}</span>
+                       <span className="font-mono text-[10px] text-text-dim">{acc.email}</span>
+                     </div>
+                   </button>
+                ))}
+              </div>
 
               <form onSubmit={handleGoogleSignIn} className="flex flex-col gap-4">
                 <input required type="text" placeholder="Nombre completo" value={googleName} onChange={e => setGoogleName(e.target.value)} className="w-full h-12 px-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm" />

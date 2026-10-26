@@ -7,7 +7,7 @@ import { GameCard } from '@/components/dashboard/GameCard';
 import { useGameStore } from '@/store/useGameStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useTranslation } from '@/i18n/useTranslation';
-import { LogOut, Edit2, X, Camera } from 'lucide-react';
+import { LogOut, Edit2, X, Camera, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 import { useRouter } from 'next/navigation';
@@ -275,7 +275,7 @@ export default function ProfilePage() {
           onClick={() => setIsDeleting(true)}
           className="w-full flex items-center justify-center gap-2 h-10 bg-transparent text-text-dim font-mono text-[10px] font-bold tracking-widest uppercase transition-all hover:text-neon-red"
         >
-          🗑️ Eliminar Cuenta Permanentemente
+          <AlertTriangle size={14} /> ELIMINAR CUENTA PERMANENTEMENTE
         </button>
       </motion.section>
 
@@ -285,7 +285,7 @@ export default function ProfilePage() {
           <div className="fixed inset-0 z-[110] flex items-center justify-center px-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-obsidian-black/90 backdrop-blur-sm" onClick={() => setIsDeleting(false)} />
             <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} className="relative bg-obsidian-dark border border-neon-red/50 p-6 rounded-3xl w-full max-w-sm shadow-[0_0_30px_rgba(255,42,85,0.2)]">
-              <h3 className="font-heading font-bold text-xl text-white uppercase mb-3">⚠️ ¿Eliminar Cuenta?</h3>
+              <h3 className="font-heading font-bold text-xl text-white uppercase mb-3 flex items-center gap-2"><AlertTriangle className="text-neon-red-bright" /> ¿ELIMINAR CUENTA?</h3>
               <p className="font-body text-sm text-text-dim mb-6 leading-relaxed">
                 ¿Estás seguro de eliminar tu cuenta <span className="text-white font-bold">@{user?.displayName}</span>? Se borrarán tu bóveda de juegos, progreso y credenciales de forma <span className="text-neon-red-bright font-bold">irreversible</span>.
               </p>
@@ -359,7 +359,7 @@ export default function ProfilePage() {
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <Camera size={16} />
-                    📱 Elegir Foto de mi Galería
+                    ELEGIR FOTO DE GALERÍA
                   </Button>
                 </div>
                 <Button type="submit" variant="neon" className="w-full mt-4">Guardar Cambios</Button>

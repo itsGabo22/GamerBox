@@ -102,10 +102,16 @@ export const useGameStore = create<GameState & GameActions>()(
     }),
     {
       name: 'gamerbox-storage',
-      storage: createJSONStorage(() => typeof window !== 'undefined' ? localStorage : {
-        getItem: () => null,
-        setItem: () => {},
-        removeItem: () => {},
+      storage: createJSONStorage(() => {
+        if (typeof window === 'undefined') return { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+        const userStr = localStorage.getItem('gamerbox_cached_user');
+        const uid = userStr ? JSON.parse(userStr).uid : 'guest';
+
+        return {
+          getItem: (name) => localStorage.getItem(`${name}_${uid}`),
+          setItem: (name, value) => localStorage.setItem(`${name}_${uid}`, value),
+          removeItem: (name) => localStorage.removeItem(`${name}_${uid}`)
+        };
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {

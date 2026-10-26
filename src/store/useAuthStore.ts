@@ -18,6 +18,10 @@ interface UserProfile {
   photoURL: string | null;
   bio?: string;
   title?: string;
+  level?: number;
+  xp?: number;
+  platinums?: number;
+  totalHours?: number;
 }
 
 interface AuthState {
@@ -307,11 +311,33 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   signInWithGoogleAccount: async (email, displayName) => {
     set({ authError: null });
     const emailLower = email.trim().toLowerCase();
+
+    // Check if account already exists
+    if (typeof window !== 'undefined') {
+      const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
+      if (vaultStr) {
+        const vault = JSON.parse(vaultStr);
+        if (vault[emailLower]) {
+           const existingUser = vault[emailLower];
+           localStorage.setItem('gamerbox_cached_user', JSON.stringify(existingUser));
+           set({ user: existingUser, isAuthLoading: false, authError: null });
+
+           // If they have a custom game library associated with this uid, we shouldn't overwrite it
+           // useGameStore will pick up the new UID on next hydration or reload
+           return true;
+        }
+      }
+    }
+
     const newUser = {
-      uid: 'google-' + Date.now(),
+      uid: 'google-' + emailLower.replace(/[^a-z0-9]/g, '_'),
       email: emailLower,
       displayName,
-      photoURL: null
+      photoURL: null,
+      level: 1,
+      xp: 0,
+      platinums: 0,
+      totalHours: 0
     };
 
     if (typeof window !== 'undefined') {
@@ -380,6 +406,16 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
 
     if (typeof window !== 'undefined') {
       localStorage.setItem('gamerbox_cached_user', JSON.stringify(newProfile));
+      if (newProfile.email) {
+         const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
+         if (vaultStr) {
+           const vault = JSON.parse(vaultStr);
+           if (vault[newProfile.email.toLowerCase()]) {
+              vault[newProfile.email.toLowerCase()] = { ...vault[newProfile.email.toLowerCase()], ...newProfile };
+              localStorage.setItem('gamerbox_accounts_vault', JSON.stringify(vault));
+           }
+         }
+      }
     }
 
     if (isFirebaseConfigured && auth.currentUser) {
@@ -393,8 +429,13 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       // Sync extra profile fields to Firestore
       syncUserProfileToCloud(auth.currentUser.uid, {
         bio: newProfile.bio,
-        title: newProfile.title
-      }).catch(console.error);
+        title: newProfile.title,
+        level: newProfile.level,
+        platinums: newProfile.platinums,
+        totalHours: newProfile.totalHours,
+        xp: newProfile.xp
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any).catch(console.error);
     }
   },
 

@@ -19,6 +19,9 @@ export interface FriendProfile {
   status: 'ONLINE' | 'IN_GAME' | 'OFFLINE';
   currentGame?: string;
   isFriend: boolean;
+  level?: number;
+  platinums?: number;
+  totalHours?: number;
 }
 
 export interface CommunityPost {

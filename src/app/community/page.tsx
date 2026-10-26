@@ -22,6 +22,7 @@ export default function CommunityPage() {
   const [inspectProfile, setInspectProfile] = useState<FriendProfile | null>(null);
 
   // Add the explicit friend action
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleAddFriendByTag = (tag: string) => {
     // Check if friend already exists in mock data or local vault
     const existingFriend = friends.find(f => f.gamertag.toLowerCase() === tag.toLowerCase());
@@ -302,25 +303,95 @@ export default function CommunityPage() {
               />
             </div>
 
-            {searchFriend.trim().length > 0 && (
-              <div className="mt-4 p-4 rounded-xl border border-neon-red/40 bg-obsidian-black flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-neon-red/20 border border-neon-red flex items-center justify-center font-bold text-neon-red uppercase">
-                    {searchFriend.trim().slice(0, 2)}
-                  </div>
-                  <div>
-                    <p className="font-bold text-white">@{searchFriend.trim()}</p>
-                    <p className="text-xs text-mint-green font-mono">JUGADOR ENCONTRADO // ONLINE</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleAddFriendByTag(searchFriend.trim())}
-                  className="px-4 py-2 rounded-lg bg-neon-red text-white text-xs font-bold uppercase tracking-wider shadow-neon"
-                >
-                  + AGREGAR
-                </button>
-              </div>
-            )}
+            {searchFriend.trim().length > 0 && (() => {
+               let foundUser: FriendProfile | null = null;
+
+               // First check friends
+               foundUser = friends.find(f => f.gamertag.toLowerCase() === searchFriend.trim().toLowerCase()) || null;
+
+               // If not in friends, check local vault
+               if (!foundUser && typeof window !== 'undefined') {
+                 const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
+                 if (vaultStr) {
+                    const vault = JSON.parse(vaultStr);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const matchingAcc = Object.values(vault).find((acc: any) => acc.displayName?.toLowerCase() === searchFriend.trim().toLowerCase());
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    if (matchingAcc && (matchingAcc as any).uid !== user?.uid) { // Don't allow adding self
+                       foundUser = {
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          uid: (matchingAcc as any).uid,
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          gamertag: (matchingAcc as any).displayName,
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          title: (matchingAcc as any).title || 'GAMERBOX USER',
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          photoURL: (matchingAcc as any).photoURL || null,
+                          status: 'ONLINE',
+                          isFriend: false,
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          level: (matchingAcc as any).level,
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          platinums: (matchingAcc as any).platinums,
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          totalHours: (matchingAcc as any).totalHours
+                       };
+                    }
+                 }
+               }
+
+               if (foundUser) {
+                 return (
+                    <div className="mt-4 p-4 rounded-xl border border-neon-red/40 bg-zinc-900/90 flex items-center justify-between shadow-glass">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-10 h-10 rounded-full border border-neon-red flex items-center justify-center font-bold uppercase bg-cover bg-center"
+                          style={{ backgroundImage: foundUser.photoURL ? `url(${foundUser.photoURL})` : 'none', backgroundColor: foundUser.photoURL ? 'transparent' : 'rgba(255,42,85,0.2)' }}
+                        >
+                          {!foundUser.photoURL && <span className="text-neon-red">{foundUser.gamertag.slice(0, 2)}</span>}
+                        </div>
+                        <div className="flex flex-col text-left">
+                          <p className="font-bold text-white leading-tight">@{foundUser.gamertag}</p>
+                          <p className="text-[9px] text-mint-green font-mono uppercase tracking-widest mt-0.5">JUGADOR ENCONTRADO // ONLINE</p>
+                        </div>
+                      </div>
+                      {foundUser.isFriend ? (
+                        <span className="px-3 py-1 rounded bg-white/10 text-white text-[10px] font-mono font-bold uppercase tracking-wider">
+                          EN TU ESCUADRÓN
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (foundUser) {
+                              useCommunityStore.setState((state) => {
+                                const exists = state.friends.find(f => f.uid === foundUser!.uid);
+                                if (exists) {
+                                   return { friends: state.friends.map(f => f.uid === foundUser!.uid ? { ...f, isFriend: true } : f) };
+                                } else {
+                                   return { friends: [...state.friends, { ...foundUser!, isFriend: true }] };
+                                }
+                              });
+                              setSearchFriend('');
+                            }
+                          }}
+                          className="px-4 py-2 rounded-lg bg-neon-red text-white text-[10px] font-bold uppercase tracking-wider shadow-neon"
+                        >
+                          + AGREGAR
+                        </button>
+                      )}
+                    </div>
+                 );
+               } else {
+                 // Block fake searches
+                 return (
+                    <div className="mt-4 p-4 rounded-xl border border-surface-border bg-obsidian-dark flex items-center justify-center text-center">
+                      <p className="text-xs font-body text-text-dim">
+                        USUARIO NO ENCONTRADO — No existe ninguna cuenta registrada como <span className="text-white font-bold">@{searchFriend.trim()}</span> en GamerBox.
+                      </p>
+                    </div>
+                 );
+               }
+            })()}
 
             {/* My Squad */}
             <section>
@@ -399,7 +470,7 @@ export default function CommunityPage() {
                       </div>
                     </div>
                     <Button variant="ghost" size="sm" className="h-8 px-3 border-neon-red/30 text-neon-red-bright hover:bg-neon-red/10 flex gap-2" onClick={(e) => { e.stopPropagation(); addFriend(friend.uid); }}>
-                      <UserPlus size={14} /> Agregar
+                      <UserPlus size={14} /> AGREGAR
                     </Button>
                   </GlassPanel>
                 ))}
@@ -432,17 +503,17 @@ export default function CommunityPage() {
                     <div className="grid grid-cols-3 gap-2 mb-6">
                       <div className="bg-obsidian-black border border-surface-border rounded-xl p-3 flex flex-col items-center">
                         <Trophy size={14} className="text-mint-green mb-1" />
-                        <span className="font-heading font-bold text-white text-sm">24</span>
+                        <span className="font-heading font-bold text-white text-sm">{inspectProfile.level ?? 1}</span>
                         <span className="font-mono text-[8px] text-text-dim uppercase tracking-widest">Nivel</span>
                       </div>
                       <div className="bg-obsidian-black border border-surface-border rounded-xl p-3 flex flex-col items-center">
                         <Star size={14} className="text-neon-red mb-1" />
-                        <span className="font-heading font-bold text-white text-sm">12</span>
+                        <span className="font-heading font-bold text-white text-sm">{inspectProfile.platinums ?? 0}</span>
                         <span className="font-mono text-[8px] text-text-dim uppercase tracking-widest">Platinos</span>
                       </div>
                       <div className="bg-obsidian-black border border-surface-border rounded-xl p-3 flex flex-col items-center">
                         <Clock size={14} className="text-white/50 mb-1" />
-                        <span className="font-heading font-bold text-white text-sm">340h</span>
+                        <span className="font-heading font-bold text-white text-sm">{inspectProfile.totalHours ?? 0}h</span>
                         <span className="font-mono text-[8px] text-text-dim uppercase tracking-widest">Jugadas</span>
                       </div>
                     </div>
