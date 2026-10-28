@@ -32,9 +32,46 @@ export interface ApiGameSearchResult {
   thumb: string;
 }
 
+export interface ExternalGameResult {
+  gameID: string;
+  steamAppID: string;
+  title: string;
+  thumb: string;
+  cover: string;
+  cheapestPrice: string;
+  genre: string;
+  platform: string;
+}
+
 export const getHighResSteamCover = (steamAppID?: string, fallbackThumb?: string): string => {
-  if (steamAppID) {
-    return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${steamAppID}/library_600x900.jpg`;
+  let appId = steamAppID;
+  if (!appId && fallbackThumb) {
+    const match = fallbackThumb.match(/\/apps\/(\d+)\//);
+    if (match) {
+      appId = match[1];
+    }
+  }
+
+  if (appId) {
+    return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900.jpg`;
+  }
+  if (fallbackThumb) {
+    return fallbackThumb.replace(/capsule_sm_120\.jpg|capsule_184x69\.jpg/i, 'header.jpg');
+  }
+  return '';
+};
+
+export const getSteamHeaderImage = (steamAppID?: string, fallbackThumb?: string): string => {
+  let appId = steamAppID;
+  if (!appId && fallbackThumb) {
+    const match = fallbackThumb.match(/\/apps\/(\d+)\//);
+    if (match) {
+      appId = match[1];
+    }
+  }
+
+  if (appId) {
+    return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`;
   }
   if (fallbackThumb) {
     return fallbackThumb.replace(/capsule_sm_120\.jpg|capsule_184x69\.jpg/i, 'header.jpg');
@@ -77,9 +114,7 @@ export const fetchSteamDeals = async (): Promise<ApiGameDeal[]> => {
     return data.map(deal => ({
       ...deal,
       // Upgrade CheapShark low-res thumbs to high-res Steam headers if possible
-      cover: deal.steamAppID
-        ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${deal.steamAppID}/header.jpg`
-        : getHighResSteamCover(deal.steamAppID, deal.thumb),
+      cover: getSteamHeaderImage(deal.steamAppID, deal.thumb),
       thumb: getHighResSteamCover(deal.steamAppID, deal.thumb),
       salePrice: deal.salePrice,
       normalPrice: deal.normalPrice,
@@ -95,33 +130,48 @@ export const fetchSteamDeals = async (): Promise<ApiGameDeal[]> => {
 /**
  * Search global games using CheapShark API (free, reliable, covers Steam/Epic/GOG)
  */
-export const searchGlobalGames = async (query: string): Promise<ApiGameSearchResult[]> => {
+export const searchGlobalGames = async (query: string): Promise<ExternalGameResult[]> => {
   if (!query || query.trim() === '') return [];
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3500);
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+  const localResults = GLOBAL_GAMES_CATALOG.filter(g => g.title.toLowerCase().includes(query.toLowerCase())).map(g => ({
+    gameID: `local-${g.id}`,
+    steamAppID: '',
+    title: g.title,
+    thumb: g.cover,
+    cover: g.cover,
+    cheapestPrice: g.salePrice.toString(),
+    genre: g.genre,
+    platform: g.platform
+  }));
+
   try {
-    const response = await fetch(`https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(query)}&limit=15`, {
+    const response = await fetch(`https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(query)}&limit=12`, {
       signal: controller.signal
     });
     if (!response.ok) throw new Error('Network response was not ok');
     const data: ApiGameSearchResult[] = await response.json();
     clearTimeout(timeoutId);
-    return data.map(game => ({
-      ...game,
-      thumb: getHighResSteamCover(game.steamAppID, game.thumb)
+
+    const apiResults = data.map(game => ({
+      gameID: game.gameID,
+      steamAppID: game.steamAppID || '',
+      title: game.external,
+      thumb: getHighResSteamCover(game.steamAppID, game.thumb),
+      cover: getSteamHeaderImage(game.steamAppID, game.thumb),
+      cheapestPrice: game.cheapest,
+      genre: 'PC', // default for CheapShark
+      platform: 'PC'
     }));
+
+    // Merge and deduplicate by title
+    const combined = [...localResults, ...apiResults];
+    const unique = Array.from(new Map(combined.map(item => [item.title.toLowerCase(), item])).values());
+    return unique.slice(0, 12);
   } catch (error) {
     console.warn('Error searching games (falling back to local catalog):', error);
     clearTimeout(timeoutId);
-    const localResults = GLOBAL_GAMES_CATALOG.filter(g => g.title.toLowerCase().includes(query.toLowerCase()));
-    return localResults.map(g => ({
-      gameID: g.id,
-      steamAppID: '',
-      cheapest: g.salePrice.toString(),
-      cheapestDealID: '',
-      external: g.title,
-      internalName: g.title,
-      thumb: g.cover
-    }));
+    return localResults;
   }
 };

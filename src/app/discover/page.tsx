@@ -6,7 +6,7 @@ import { GameCard } from '@/components/dashboard/GameCard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/store/useGameStore';
 import { getOracleRecommendations, AiRecommendation, analyzeSteamDeals } from '@/services/aiService';
-import { fetchSteamDeals, searchGlobalGames, ApiGameDeal, ApiGameSearchResult } from '@/services/gameApiService';
+import { fetchSteamDeals, searchGlobalGames, ApiGameDeal, ExternalGameResult } from '@/services/gameApiService';
 import { Button } from '@/components/ui/Button';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useSettingsStore, formatPrice } from '@/store/useSettingsStore';
@@ -38,7 +38,7 @@ export default function DiscoverPage() {
   const [dealAnalysis, setDealAnalysis] = useState<{ recommendedDealId: string; analysis: string } | null>(null);
   const [isDealAnalysisLoading, setIsDealAnalysisLoading] = useState(false);
 
-  const [searchResults, setSearchResults] = useState<ApiGameSearchResult[]>([]);
+  const [searchResults, setSearchResults] = useState<ExternalGameResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
   // Custom Game Modal State
@@ -92,19 +92,20 @@ export default function DiscoverPage() {
     }
   };
 
-  const handleOpenGlobalGame = (gameInfo: ApiGameSearchResult) => {
+  const handleOpenGlobalGame = (gameInfo: ExternalGameResult) => {
     const tempGame = {
       id: gameInfo.gameID,
-      title: gameInfo.external,
-      coverUrl: gameInfo.thumb,
-      genre: 'UNKNOWN',
-      platform: 'PC',
+      title: gameInfo.title,
+      coverUrl: gameInfo.cover,
+      genre: gameInfo.genre,
+      platform: gameInfo.platform,
       status: 'PENDING',
       isFavorite: false,
       timePlayed: '0 hrs',
       rating: 0
     };
     setSelectedGame(tempGame);
+    sessionStorage.setItem('gamerbox_active_game', JSON.stringify(tempGame));
     router.push(`/game/view?id=${gameInfo.gameID}&external=true`);
   };
   const handleAddToBacklog = (rec: AiRecommendation) => {
@@ -122,14 +123,60 @@ export default function DiscoverPage() {
     setOracleResults(prev => prev ? prev.filter(r => r.id !== rec.id) : null);
   };
 
-  const submitNewGame = (e: React.FormEvent) => {
+  const [addSearchQuery, setAddSearchQuery] = useState('');
+  const [addSearchResults, setAddSearchResults] = useState<ExternalGameResult[]>([]);
+  const [isAddSearching, setIsAddSearching] = useState(false);
+  const [selectedAddGame, setSelectedAddGame] = useState<ExternalGameResult | null>(null);
+
+  useEffect(() => {
+    if (addSearchQuery.trim().length > 2 && !selectedAddGame) {
+      setIsAddSearching(true);
+      const delay = setTimeout(() => {
+        searchGlobalGames(addSearchQuery).then(res => {
+          setAddSearchResults(res.slice(0, 6));
+          setIsAddSearching(false);
+        });
+      }, 300);
+      return () => clearTimeout(delay);
+    } else {
+      setAddSearchResults([]);
+      setIsAddSearching(false);
+    }
+  }, [addSearchQuery, selectedAddGame]);
+
+  const submitNewGame = async (e: React.FormEvent) => {
     e.preventDefault();
-    addGame({
-      id: `custom-${Date.now()}`,
+
+    let gameToSave = {
       title: newGame.title,
       coverUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1000',
       genre: newGame.genre,
-      platform: newGame.platform,
+      platform: newGame.platform
+    };
+
+    if (selectedAddGame) {
+      gameToSave = {
+        title: selectedAddGame.title,
+        coverUrl: selectedAddGame.cover,
+        genre: selectedAddGame.genre,
+        platform: selectedAddGame.platform
+      };
+    } else if (addSearchQuery.trim().length > 2 && addSearchResults.length > 0) {
+      // User typed something valid but didn't tap autocomplete
+      const topMatch = addSearchResults[0];
+      gameToSave = {
+        title: topMatch.title,
+        coverUrl: topMatch.cover,
+        genre: topMatch.genre,
+        platform: topMatch.platform
+      };
+    } else if (addSearchQuery.trim().length > 0) {
+      gameToSave.title = addSearchQuery;
+    }
+
+    addGame({
+      id: `custom-${Date.now()}`,
+      ...gameToSave,
       status: newGame.status,
       isFavorite: false,
       timePlayed: '0 hrs',
@@ -137,6 +184,8 @@ export default function DiscoverPage() {
     });
     setShowAddModal(false);
     setNewGame({ title: '', platform: 'PC', genre: 'RPG', status: 'PENDING' });
+    setAddSearchQuery('');
+    setSelectedAddGame(null);
   };
 
   // Filter games based on search and selected genre
@@ -415,14 +464,14 @@ export default function DiscoverPage() {
                 <div key={game.gameID} onClick={() => handleOpenGlobalGame(game)} className="cursor-pointer">
                   <GameCard game={{
                     id: game.gameID,
-                    title: game.external,
-                    coverUrl: game.thumb,
+                    title: game.title,
+                    coverUrl: game.cover,
                     status: 'GLOBAL',
                     rating: 0,
                     isFavorite: false,
                     timePlayed: '0 hrs',
-                    platform: 'PC',
-                    genre: 'UNKNOWN',
+                    platform: game.platform,
+                    genre: game.genre,
                   }} />
                 </div>
               ))}
@@ -479,8 +528,69 @@ export default function DiscoverPage() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-obsidian-black/80 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
             <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} className="relative bg-obsidian-dark border border-surface-border p-6 rounded-3xl w-full max-w-sm shadow-glass">
               <h3 className="font-heading font-bold text-xl text-white mb-4 uppercase">Nuevo Juego</h3>
+
               <form onSubmit={submitNewGame} className="flex flex-col gap-4">
-                <input required placeholder="Título" value={newGame.title} onChange={e => setNewGame({...newGame, title: e.target.value})} className="w-full h-12 px-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm" />
+                <div className="relative">
+                  <input
+                    required
+                    placeholder="Título del juego..."
+                    value={addSearchQuery}
+                    onChange={e => {
+                      setAddSearchQuery(e.target.value);
+                      setSelectedAddGame(null);
+                    }}
+                    className="w-full h-12 px-4 pl-10 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm"
+                  />
+                  <div className="absolute left-3 top-3.5 text-text-dim">
+                     {isAddSearching ? <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}><Sparkles size={16}/></motion.div> : <SearchIcon size={16} />}
+                  </div>
+
+                  {/* Autocomplete Dropdown */}
+                  <AnimatePresence>
+                    {addSearchQuery.length > 2 && addSearchResults.length > 0 && !selectedAddGame && (
+                       <motion.div
+                         initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
+                         className="absolute top-14 left-0 right-0 max-h-60 overflow-y-auto bg-obsidian-dark border border-surface-border rounded-xl shadow-2xl z-50 flex flex-col gap-1 p-2"
+                       >
+                         {addSearchResults.map(res => (
+                           <button
+                             key={res.gameID}
+                             type="button"
+                             onClick={() => {
+                               setSelectedAddGame(res);
+                               setAddSearchQuery(res.title);
+                               setNewGame(prev => ({...prev, genre: res.genre || 'UNKNOWN', platform: res.platform || 'PC'}));
+                             }}
+                             className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors text-left"
+                           >
+                             <div className="w-12 h-16 flex-shrink-0 rounded bg-obsidian-black border border-white/5 overflow-hidden">
+                               {/* eslint-disable-next-line @next/next/no-img-element */}
+                               <img src={res.cover || res.thumb} alt={res.title} className="w-full h-full object-cover" />
+                             </div>
+                             <div className="flex flex-col flex-1 overflow-hidden">
+                               <span className="font-heading font-bold text-sm text-white line-clamp-1">{res.title}</span>
+                               <span className="font-mono text-[9px] text-text-dim uppercase">{res.genre} • {res.platform}</span>
+                             </div>
+                           </button>
+                         ))}
+                       </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {selectedAddGame && (
+                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full h-32 rounded-xl border border-neon-red/30 overflow-hidden relative">
+                     {/* eslint-disable-next-line @next/next/no-img-element */}
+                     <img src={selectedAddGame.cover || selectedAddGame.thumb} alt="Preview" className="w-full h-full object-cover" />
+                     <div className="absolute inset-0 bg-gradient-to-t from-obsidian-black to-transparent" />
+                     <div className="absolute bottom-2 left-2 flex gap-2">
+                       <span className="px-2 py-1 rounded bg-neon-red text-white text-[9px] font-mono font-bold uppercase tracking-wider">
+                         SELECCIONADO
+                       </span>
+                     </div>
+                  </motion.div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="relative">
                     <label className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1 block">Plataforma</label>
