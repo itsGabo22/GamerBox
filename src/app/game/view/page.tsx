@@ -83,7 +83,7 @@ function GameView() {
     'flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/50 text-real-white backdrop-blur-md transition-transform duration-150 active:scale-90';
 
   return (
-    <div className="relative flex min-h-[100dvh] w-full flex-col pb-10">
+    <div className="relative flex min-h-[100dvh] w-full flex-col" style={{ paddingBottom: 'calc(var(--sab) + 40px)' }}>
       {/* Blurred backdrop + whole, uncropped cover */}
       <div className="absolute inset-x-0 top-0 h-[300px] overflow-hidden" aria-hidden>
         <GameCover src={game.coverUrl} title={game.title} backdrop className="h-full w-full" />

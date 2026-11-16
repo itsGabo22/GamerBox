@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/cn';
 
 interface GameCoverProps {
@@ -41,6 +41,16 @@ export const GameCover = ({ src, title, genre, className, backdrop = false }: Ga
 
   const url = candidates[index];
   const loaded = ratio !== null;
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // A cached image can finish before React attaches onLoad (seen in the Android WebView),
+  // which would leave the cover invisible. Read the element directly once it exists.
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0 && ratio === null) {
+      setRatio(img.naturalWidth / Math.max(1, img.naturalHeight));
+    }
+  }, [url, ratio]);
   // Narrower than ~0.8 is a real portrait cover; everything else gets the composed treatment.
   const composed = loaded && ratio > 0.8;
 
@@ -58,6 +68,7 @@ export const GameCover = ({ src, title, genre, className, backdrop = false }: Ga
       {!backdrop && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
+          ref={imgRef}
           src={url}
           alt={title}
           draggable={false}

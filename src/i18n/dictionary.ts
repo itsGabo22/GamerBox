@@ -208,6 +208,7 @@ const es = {
   backlog: {
     title: 'Mi bóveda',
     subtitle: '{games} juegos · {hours} h registradas',
+    subtitleOne: '1 juego · {hours} h registradas',
     total: 'Total',
     pending: 'Pendientes',
     playing: 'Jugando',
@@ -604,6 +605,7 @@ const en: typeof es = {
   backlog: {
     title: 'My vault',
     subtitle: '{games} games · {hours} h logged',
+    subtitleOne: '1 game · {hours} h logged',
     total: 'Total',
     pending: 'Pending',
     playing: 'Playing',

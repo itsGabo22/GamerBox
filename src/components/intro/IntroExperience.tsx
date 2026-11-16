@@ -63,6 +63,24 @@ export function IntroExperience({ hasUser }: IntroExperienceProps) {
   const stageReady = useRef(false);
   const lowEnd = useRef(false);
   const hadUser = useRef(hasUser);
+  // On the login screen the crystal belongs to the page: it scrolls with it and keeps its size
+  // when the soft keyboard shrinks the viewport (the canvas keeps the tallest height seen).
+  const [stageScroll, setStageScroll] = useState(0);
+  const [stageHeight, setStageHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!stageMounted) return;
+    const onScroll = () => setStageScroll(window.scrollY);
+    const onResize = () => setStageHeight((h) => Math.max(h || 0, window.innerHeight));
+    onScroll();
+    onResize();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [stageMounted]);
 
   const clearTimers = () => {
     timers.current.forEach(clearTimeout);
@@ -189,8 +207,12 @@ export function IntroExperience({ hasUser }: IntroExperienceProps) {
 
       {stageMounted && (
         <div
-          className="pointer-events-none fixed inset-0"
-          style={{ zIndex: overSession || exitBurst ? 200 : 5 }}
+          className="pointer-events-none fixed inset-x-0 top-0"
+          style={{
+            zIndex: overSession || exitBurst ? 200 : 5,
+            height: stageHeight ?? '100dvh',
+            transform: `translate3d(0, ${-stageScroll}px, 0)`,
+          }}
           data-stage="webgl"
         >
           <ObsidianStage

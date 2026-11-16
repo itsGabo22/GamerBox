@@ -15,5 +15,6 @@ One line per item: status + commit. Resume from the first item not marked done.
 | 3 Design fixes (covers, trending, profile, community, settings, light mode, motion) | done | 842223f, 0e0d765 |
 | 4 i18n (all strings in dictionary + check script), cleanup, correctness | done | 842223f, 72fa35b |
 | 5 Native Android polish (icon, splash, manifest, back, version 1.0.0) | done | 24a308a |
-| 6 QA loop (Chrome 390×844 dark/ES + light/EN, intro frames, tutorial steps) | done (1 round); on-device pass pending: phone disconnected | — |
+| 6 QA loop (Chrome 390×844 dark/ES + light/EN, intro frames, tutorial steps) | done | — |
+| 6b On-device QA (SM-S918B, Android 17, wireless adb): intro, sign-up validation, tutorial + back, add game, status/hours/favorite, Oracle briefing, review/like/comment, squad, light/EN + system bars, double-back exit, session cold start, delete account; release installed | done | see log |
 | 7 Final APKs (debug + signed release, verified with aapt/apksigner) + README + CREDITS | done | see log |

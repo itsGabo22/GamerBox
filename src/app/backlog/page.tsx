@@ -78,7 +78,7 @@ export default function BacklogPage() {
       <motion.header variants={fadeUp} className="mb-5">
         <h1 className="font-heading text-3xl font-bold uppercase tracking-tight text-white">{t('backlog.title')}</h1>
         <p className="eyebrow mt-1.5">
-          {t('backlog.subtitle', { games: formatNumber(games.length, language), hours: formatNumber(stats.totalHours, language) })}
+          {t(games.length === 1 ? 'backlog.subtitleOne' : 'backlog.subtitle', { games: formatNumber(games.length, language), hours: formatNumber(stats.totalHours, language) })}
         </p>
       </motion.header>
 

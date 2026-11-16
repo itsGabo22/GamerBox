@@ -17,14 +17,6 @@ export const isFirebaseConfigured = Boolean(
   firebaseConfig.apiKey.length > 10
 );
 
-if (typeof window !== 'undefined') {
-  if (isFirebaseConfigured) {
-    console.log('🔐 [GamerBox Auth] Firebase Configured. Initializing...');
-  } else {
-    console.warn('🔐 [GamerBox Auth] Firebase variables missing. Falling back to DEMO LOCAL SESSION mode.');
-  }
-}
-
 // Fallback config to prevent crash during 'npm run build' or if vars are missing
 const safeConfig = isFirebaseConfigured ? firebaseConfig : {
   apiKey: "demo-key-demo-key-demo-key",

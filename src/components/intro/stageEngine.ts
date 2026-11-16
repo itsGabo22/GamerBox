@@ -124,6 +124,7 @@ export class StageEngine {
   private flicker = 0;
   private focus = 0;
   private pointer = { x: 0, y: 0, tx: 0, ty: 0 };
+  private lastSize = { w: 0, h: 0 };
 
   // Performance monitor
   private perfT = 0;
@@ -441,6 +442,8 @@ export class StageEngine {
   private resize = () => {
     const w = this.canvas.clientWidth || window.innerWidth;
     const h = this.canvas.clientHeight || window.innerHeight;
+    if (w === this.lastSize.w && h === this.lastSize.h) return;
+    this.lastSize = { w, h };
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / Math.max(1, h);
     this.camera.updateProjectionMatrix();
@@ -566,6 +569,7 @@ export class StageEngine {
       this.renderer.setPixelRatio(1);
       this.moteMat.uniforms.uPixelRatio.value = 1;
       this.motes.geometry.setDrawRange(0, Math.floor(this.moteCount / 2));
+      this.lastSize = { w: 0, h: 0 }; // force setSize with the new pixel ratio
       this.resize();
       return;
     }
