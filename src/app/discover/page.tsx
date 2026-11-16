@@ -274,7 +274,7 @@ export default function DiscoverPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="scrollbar-hide -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1">
+                  <div className="scrollbar-hide -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1">
                     {oracle.map((rec) => {
                       const has = owned.has(rec.title.trim().toLowerCase());
                       return (
@@ -367,7 +367,7 @@ export default function DiscoverPage() {
               )}
             </AnimatePresence>
 
-            <div className="scrollbar-hide -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1">
+            <div className="scrollbar-hide -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1">
               {!deals
                 ? [0, 1, 2].map((i) => (
                     <div key={i} className="w-[150px] shrink-0">

@@ -131,7 +131,7 @@ export default function BacklogPage() {
 
             {/* The fading right edge signals that the rail scrolls. */}
             <div className="rail-fade -mx-4 mt-2">
-              <div className="scrollbar-hide flex snap-x gap-2 overflow-x-auto px-4 pr-12" role="group" aria-label={t('backlog.filters')}>
+              <div className="scrollbar-hide flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pr-12" role="group" aria-label={t('backlog.filters')}>
                 <button type="button" onClick={reset} aria-pressed={active.length === 0} className={chip(active.length === 0)}>
                   {t('common.all')} · {games.length}
                 </button>

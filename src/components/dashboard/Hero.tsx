@@ -91,7 +91,7 @@ export const Hero = () => {
               style={{ left: `${m.left}%`, top: `${m.top}%`, width: m.size, height: m.size, animationDelay: `${m.delay}s` }}
             />
           ))}
-          <div className="absolute -right-10 -top-6 h-[300px] w-[240px]" aria-hidden>
+          <div className="absolute -right-14 -top-10 h-[270px] w-[220px]" aria-hidden>
             <div className="absolute inset-8 animate-spin-slow rounded-full border border-dashed border-neon-red/30" />
             <CrystalMark animation="idle" className="relative h-full w-full" />
           </div>

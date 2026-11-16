@@ -29,7 +29,7 @@ const SectionHeader = ({ title, action, href, note }: { title: string; action: s
 );
 
 const Rail = ({ children }: { children: React.ReactNode }) => (
-  <div className="scrollbar-hide -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2">{children}</div>
+  <div className="scrollbar-hide -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-2">{children}</div>
 );
 
 export default function Home() {

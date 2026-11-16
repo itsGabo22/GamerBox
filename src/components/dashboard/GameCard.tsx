@@ -18,8 +18,8 @@ interface GameCardProps {
 }
 
 const STATUS_TONE: Record<string, string> = {
-  COMPLETED: 'border-mint-green/50 bg-mint-green/15 text-mint-green',
-  PLAYING: 'border-neon-red/50 bg-neon-red/20 text-neon-red-bright',
+  COMPLETED: 'border-[#5EE6A8]/60 bg-black/70 text-[#5EE6A8]',
+  PLAYING: 'border-[#FF003C]/70 bg-black/70 text-[#FF4D6D]',
 };
 
 /** One card everywhere: fixed 2:3 frame, portrait art, same chip + title positions. */
@@ -37,14 +37,14 @@ export const GameCard = ({ game, onOpen, chip, className }: GameCardProps) => {
     >
       <GameCover src={game.coverUrl} title={game.title} genre={game.genre} className="absolute inset-0 h-full w-full" />
       {/* Art is always dark-graded so the white title stays legible in both themes. */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/35 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
 
       <div className="absolute inset-x-2.5 top-2.5 flex items-start justify-between gap-2">
         {chip ?? (
           <span
             className={cn(
               'rounded-md border px-1.5 py-1 font-mono text-[9px] font-bold uppercase leading-none tracking-wider backdrop-blur-md',
-              STATUS_TONE[game.status] || 'border-white/20 bg-black/50 text-real-white'
+              STATUS_TONE[game.status] || 'border-real-white/25 bg-black/70 text-real-white'
             )}
           >
             {statusLabel(t, game.status)}

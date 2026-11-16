@@ -118,7 +118,7 @@ export class StageEngine {
   private elapsed = 0;
 
   // Smoothed scene state (login/exit modes damp toward targets; intro writes directly).
-  private s = { scale: 0, y: 0, camZ: 6.6, burst: 0, field: 0, condense: 0, edge: 0, glow: 0, ring: 0, emissive: 0.1, motes: 0, ringScale: 1, fade: 1 };
+  private s = { scale: 0, y: 0, camZ: 6.6, burst: 0, field: 0, condense: 0, edge: 0, glow: 0, ring: 0, emissive: 0.03, motes: 0, ringScale: 1, fade: 1 };
   private spin = 0;
   private kick = 0;
   private flicker = 0;
@@ -237,8 +237,8 @@ export class StageEngine {
       iridescence: 0.45,
       iridescenceIOR: 1.7,
       emissive: RED,
-      emissiveIntensity: 0.1,
-      envMapIntensity: 1.5,
+      emissiveIntensity: 0.03,
+      envMapIntensity: 1.9,
       flatShading: true,
       side: DoubleSide,
       transparent: true,
@@ -262,7 +262,7 @@ export class StageEngine {
       vertexShader: `${SHARD_VERTEX}
         void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(gbShard(position * 1.004), 1.0); }`,
       fragmentShader: `uniform vec3 uColor; uniform float uOpacity;
-        void main() { gl_FragColor = vec4(uColor * uOpacity, uOpacity); }`,
+        void main() { gl_FragColor = vec4(uColor, uOpacity); }`,
       transparent: true,
       blending: AdditiveBlending,
       depthWrite: false,
@@ -314,7 +314,7 @@ export class StageEngine {
         uCondense: { value: 0 },
         uField: { value: 0 },
         uOpacity: { value: 0 },
-        uSize: { value: 5.5 },
+        uSize: { value: 7.0 },
         uPixelRatio: { value: this.renderer.getPixelRatio() },
         uCore: { value: this.core.position },
         uColorA: { value: new Color(RED_BRIGHT) },
@@ -348,7 +348,7 @@ export class StageEngine {
           float twinkle = 0.6 + 0.4 * sin(uTime * (1.0 + aSeed.w * 3.0) + aSeed.x * 40.0);
           gl_PointSize = uSize * uPixelRatio * (0.5 + aSeed.w) * twinkle * (5.0 / max(0.5, -mv.z));
           vMint = step(0.82, aSeed.w);
-          vAlpha = mix(1.0 - c * 0.45, 0.3, uField);
+          vAlpha = mix(1.0 - c * 0.45, 0.55, uField);
         }`,
       fragmentShader: /* glsl */ `
         uniform vec3 uColorA, uColorB;
@@ -358,7 +358,7 @@ export class StageEngine {
         void main() {
           float d = length(gl_PointCoord - 0.5);
           float a = smoothstep(0.5, 0.0, d);
-          gl_FragColor = vec4(mix(uColorA, uColorB, vMint) * a * vAlpha * uOpacity, a * vAlpha * uOpacity);
+          gl_FragColor = vec4(mix(uColorA, uColorB, vMint), a * vAlpha * uOpacity);
         }`,
       transparent: true,
       blending: AdditiveBlending,
@@ -450,7 +450,7 @@ export class StageEngine {
   private loginTargets() {
     const camZ = 5.6;
     const visibleH = 2 * Math.tan((35 * Math.PI) / 360) * camZ;
-    return { scale: 0.27, y: visibleH * 0.3, camZ, burst: 0, field: 1, condense: 1, edge: 0.9, glow: 0.42, ring: 0.5, emissive: 0.16, motes: 0.75, ringScale: 1 };
+    return { scale: 0.235, y: visibleH * 0.325, camZ, burst: 0, field: 1, condense: 1, edge: 0.85, glow: 0.4, ring: 0.45, emissive: 0.03, motes: 0.8, ringScale: 1 };
   }
 
   private introState(t: number) {
@@ -460,28 +460,29 @@ export class StageEngine {
     s.ringScale = 1;
     s.motes = clamp01(t / 0.6) * 0.9;
     if (t < INTRO.boot) {
-      Object.assign(s, { condense: 0, scale: 0, edge: 0, glow: 0, ring: 0, burst: 0, field: 0, emissive: 0.1, camZ: 6.6 });
+      Object.assign(s, { condense: 0, scale: 0, edge: 0, glow: 0, ring: 0, burst: 0, field: 0, emissive: 0.02, camZ: 6.6 });
       return;
     }
     if (t < INTRO.forged) {
       const u = (t - INTRO.boot) / (INTRO.forged - INTRO.boot);
-      const k = clamp01((u - 0.4) / 0.6);
+      // The crystal is fully formed, dark and glossy, by ~1.7 s and holds before the pulse.
+      const k = clamp01((u - 0.3) / 0.45);
       Object.assign(s, {
         condense: easeInOut(u), scale: 0.5 * easeOutBack(k), edge: k, glow: 0.15 + 0.45 * k, ring: k * 0.8,
-        burst: 0, field: 0, emissive: 0.1 + 0.15 * k, camZ: 6.6 - 1.7 * easeOutCubic(u),
+        burst: 0, field: 0, emissive: 0.02 + 0.05 * k, camZ: 6.6 - 1.7 * easeOutCubic(u),
       });
       return;
     }
     if (t < INTRO.crack) {
       const p = Math.sin(((t - INTRO.forged) / (INTRO.crack - INTRO.forged)) * Math.PI);
-      Object.assign(s, { condense: 1, scale: 0.5 * (1 + 0.1 * p), edge: 1, glow: 0.6 + 0.5 * p, ring: 0.8, burst: 0, field: 0, emissive: 0.25 + 1.5 * p, camZ: 4.9 });
+      Object.assign(s, { condense: 1, scale: 0.5 * (1 + 0.1 * p), edge: 1, glow: 0.6 + 0.5 * p, ring: 0.8, burst: 0, field: 0, emissive: 0.07 + 0.55 * p, camZ: 4.9 });
       return;
     }
     const v = clamp01((t - INTRO.crack) / (INTRO.burst - INTRO.crack));
     const flash = Math.max(0, 1 - v / 0.22);
     Object.assign(s, {
-      condense: 1, scale: 0.5, edge: 1 - 0.45 * v, glow: 0.5 + 2.2 * flash - 0.3 * v, ring: 0.8 * (1 - v), ringScale: 1 + 3.2 * easeOutCubic(v),
-      burst: easeOutCubic(v), field: easeOutCubic(v), emissive: 0.3 + 2.2 * flash, camZ: 4.9 + 0.3 * v,
+      condense: 1, scale: 0.5, edge: 1 - 0.45 * v, glow: 0.5 + 2.2 * flash - 0.3 * v, ring: 0.8 * Math.max(0, 1 - v * 2.2), ringScale: 1 + 2.4 * easeOutCubic(v),
+      burst: easeOutCubic(v), field: easeOutCubic(v), emissive: 0.05 + 1.8 * flash, camZ: 4.9 + 0.3 * v,
     });
   }
 
@@ -532,8 +533,8 @@ export class StageEngine {
     this.ring.scale.setScalar(s.ringScale);
 
     this.uBurst.value = s.burst;
-    this.crystalMat.opacity = clamp01(s.edge * 1.4) * (1 - s.burst * 0.35) * s.fade;
-    this.crystalMat.emissiveIntensity = (s.emissive + this.kick * 0.9 + errorHeat) * flick;
+    this.crystalMat.opacity = clamp01(s.edge * 3) * (1 - s.burst * 0.35) * s.fade;
+    this.crystalMat.emissiveIntensity = (s.emissive + this.kick * 0.35 + errorHeat * 0.6) * flick;
     this.edgeMat.uniforms.uOpacity.value = (s.edge + this.kick * 0.5 + focusGlow) * flick * s.fade;
     this.glowMat.opacity = clamp01((s.glow + focusGlow + this.kick * 0.5 + errorHeat * 0.4) * flick) * s.fade;
     this.ringMat.opacity = s.ring * flick * s.fade;

@@ -244,7 +244,7 @@ export function LoginScreen() {
         style={{ paddingTop: 'var(--sat)', paddingBottom: 'max(var(--sab), 20px)' }}
       >
         {/* Stage window: the WebGL crystal shows through here; SVG stands in when 3D is off. */}
-        <div className="flex h-[31dvh] min-h-[150px] shrink-0 items-center justify-center" aria-hidden>
+        <div className="flex h-[32dvh] min-h-[150px] shrink-0 items-center justify-center" aria-hidden>
           {renderer === 'svg' && formVisible && (
             <CrystalMark animation={variant === 'reduced' ? 'none' : 'idle'} className="h-[21dvh] min-h-[110px] w-auto" />
           )}

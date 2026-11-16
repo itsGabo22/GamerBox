@@ -257,7 +257,7 @@ export function IntroExperience({ hasUser }: IntroExperienceProps) {
                 <motion.div
                   key="boot"
                   className="absolute inset-x-0 flex flex-col items-center gap-1.5 font-mono text-[11px] font-bold tracking-[0.25em]"
-                  style={{ top: '66dvh' }}
+                  style={{ top: '79dvh' }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.3 }}
                 >
