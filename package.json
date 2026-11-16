@@ -1,13 +1,17 @@
 {
-  "name": "temp-app",
-  "version": "0.1.0",
+  "name": "gamerbox",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "cap:sync": "npx cap sync"
+    "cap:sync": "npx cap sync android",
+    "i18n:check": "node scripts/i18n-check.mjs",
+    "typecheck": "tsc --noEmit",
+    "apk:debug": "npm run build && npx cap sync android && cd android && gradlew assembleDebug",
+    "apk:release": "npm run build && npx cap sync android && cd android && gradlew assembleRelease"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
