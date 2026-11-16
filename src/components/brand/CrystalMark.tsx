@@ -84,15 +84,12 @@ export const CrystalMark = ({ className, animation = 'none', delay = 0, title }:
   );
 };
 
-/** The neon "GB" monogram tile used in the header, splash and app icon. */
+/** The neon "GB" monogram tile: identical glyph to the app icon and native splash (assets/brand/gb-mark.svg). */
 export const GBMark = ({ className }: { className?: string }) => (
-  <span
-    className={cn(
-      'inline-flex items-center justify-center rounded-lg bg-neon-red font-heading font-black text-real-white shadow-neon select-none',
-      className
-    )}
-    aria-hidden
-  >
-    GB
+  <span className={cn('inline-flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-neon-red shadow-neon', className)} aria-hidden>
+    <svg viewBox="27 27 54 54" className="h-full w-full" fill="none" stroke="#FFFFFF" strokeWidth="5" strokeLinecap="square">
+      <path d="M49 43.5H38.5V64.5H49V54.5H45" />
+      <path d="M58.5 43.5V64.5H66.5a5.25 5.25 0 0 0 0-10.5H58.5M58.5 43.5H65.5a5.25 5.25 0 0 1 0 10.5" />
+    </svg>
   </span>
 );
