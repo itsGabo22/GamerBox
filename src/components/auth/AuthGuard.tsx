@@ -1,132 +1,129 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { MotionConfig } from 'framer-motion';
 import { useAuthStore } from '@/store/useAuthStore';
-import { motion } from 'framer-motion';
+import { useGameStore } from '@/store/useGameStore';
+import { useCommunityStore } from '@/store/useCommunityStore';
+import { useNotificationStore } from '@/store/useNotificationStore';
+import { useSettingsStore, applyDocumentSettings } from '@/store/useSettingsStore';
+import { useStageStore } from '@/store/useStageStore';
+import { isTutorialDone, useTutorialStore } from '@/store/useTutorialStore';
 import { GlobalHeader } from '@/components/layout/GlobalHeader';
 import { Navigation } from '@/components/layout/Navigation';
-import { NotificationsDrawer } from '@/components/notifications/NotificationsDrawer';
 import { HydrationGuard } from '@/components/layout/HydrationGuard';
+import { NotificationsDrawer } from '@/components/notifications/NotificationsDrawer';
 import { SettingsModal } from '@/components/settings/SettingsModal';
-import { fetchGamesFromCloud, syncGamesToCloud, fetchUserProfileFromCloud } from '@/services/firestoreService';
-import { useGameStore } from '@/store/useGameStore';
-import LoginPage from '@/app/login/page';
+import { Toaster } from '@/components/ui/Toaster';
+import { BootFrame, IntroExperience } from '@/components/intro/IntroExperience';
+import { Tutorial } from '@/components/tutorial/Tutorial';
+import { LoginScreen } from '@/components/auth/LoginScreen';
+import { fetchGamesFromCloud, fetchUserProfileFromCloud, syncGamesToCloud } from '@/services/firestoreService';
+import { cachedUser } from '@/lib/accountVault';
+import { setNativeTheme } from '@/lib/native';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, isAuthLoading, initAuthListener } = useAuthStore();
-  const { setGames, resetToDefault } = useGameStore();
-  const [forceUnlocked, setForceUnlocked] = React.useState(false);
+  const user = useAuthStore((s) => s.user);
+  const isAuthLoading = useAuthStore((s) => s.isAuthLoading);
+  const initAuthListener = useAuthStore((s) => s.initAuthListener);
+  const theme = useSettingsStore((s) => s.theme);
+  const language = useSettingsStore((s) => s.language);
+  const introPhase = useStageStore((s) => s.phase);
+  const hasHydrated = useGameStore((s) => s.hasHydrated);
+  const tutorialActive = useTutorialStore((s) => s.active);
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const uid = user?.uid;
 
+  // Everything below depends on localStorage, so the server HTML is just the boot frame.
   useEffect(() => {
-    const unsubscribe = initAuthListener();
-    return () => unsubscribe();
+    setMounted(true);
+    return initAuthListener();
   }, [initAuthListener]);
 
+  // Keep <html data-theme/lang> and the Android system bars in step with settings.
+  // The login and intro are always dark.
   useEffect(() => {
-    let mounted = true;
+    if (!mounted) return;
+    applyDocumentSettings(theme, language);
+    setNativeTheme(!user || introPhase !== 'done' ? 'dark' : theme);
+  }, [mounted, theme, language, user, introPhase]);
 
-    const syncCloudData = async () => {
-      if (user?.uid) {
-        // Do not block UI thread on Firestore. Let it sync in background.
-        fetchGamesFromCloud(user.uid).then(async (cloudGames) => {
-          if (mounted) {
-            if (cloudGames) {
-              setGames(cloudGames);
-            } else {
-              // New user: upload default local games as their starting library
-              await syncGamesToCloud(user.uid, useGameStore.getState().games);
-            }
-          }
-        }).catch(err => {
-          console.warn('Firestore background sync warning:', err);
-        });
+  // Per-user stores: reload from this user's keys whenever the account changes.
+  useEffect(() => {
+    if (!mounted) return;
+    useGameStore.persist.rehydrate();
+    useCommunityStore.persist.rehydrate();
+    useNotificationStore.persist.rehydrate();
+  }, [mounted, uid]);
 
-        // Fetch custom profile fields (bio, title)
-        fetchUserProfileFromCloud(user.uid).then(profile => {
-          if (mounted && profile && (profile.bio || profile.title)) {
-             useAuthStore.getState().updateUserProfile(profile);
-          }
-        }).catch(() => {});
+  // Cloud sync runs in the background and never blocks the UI.
+  useEffect(() => {
+    if (!mounted || !uid || isAuthLoading) return;
+    let alive = true;
+    const stillThisUser = () => alive && cachedUser.uid() === uid;
 
-      } else if (user === null) {
-        // Logged out, clear library to default
-        if (mounted) {
-          resetToDefault();
-        }
-      }
+    fetchGamesFromCloud(uid).then((cloudGames) => {
+      if (!stillThisUser()) return;
+      if (cloudGames) useGameStore.getState().setGames(cloudGames);
+      else syncGamesToCloud(uid, useGameStore.getState().games);
+    });
+
+    fetchUserProfileFromCloud(uid).then((profile) => {
+      const current = useAuthStore.getState().user;
+      if (!stillThisUser() || !profile || !current) return;
+      const merged = {
+        ...current,
+        bio: profile.bio ?? current.bio,
+        title: profile.title ?? current.title,
+        photoURL: profile.photoURL ?? current.photoURL,
+      };
+      cachedUser.write(merged);
+      useAuthStore.setState({ user: merged });
+    });
+
+    return () => {
+      alive = false;
     };
+  }, [mounted, uid, isAuthLoading]);
 
-    if (!isAuthLoading) {
-      syncCloudData();
-    }
-
-    return () => { mounted = false; };
-  }, [user, user?.uid, isAuthLoading, setGames, resetToDefault]);
-
+  // Signed-in users never stay on /login.
+  const isLoginRoute = (pathname || '/').replace(/\/+$/, '') === '/login';
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setForceUnlocked(true);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, []);
+    if (mounted && user && isLoginRoute) router.replace('/');
+  }, [mounted, user, isLoginRoute, router]);
 
-  const normalizedPath = (pathname || '/').replace(/\/+$/, '') || '/';
-  const isLoginRoute = normalizedPath === '/login' || normalizedPath.endsWith('/login');
-
+  // First run for this account: start the tutorial once the intro is out of the way.
   useEffect(() => {
-    if (!isAuthLoading) {
-      if (user && isLoginRoute) {
-        router.replace('/');
-      }
+    if (!mounted || !uid || introPhase !== 'done' || !hasHydrated) return;
+    if (!isTutorialDone(uid) && !useTutorialStore.getState().active) {
+      const timer = setTimeout(() => useTutorialStore.getState().start(), 500);
+      return () => clearTimeout(timer);
     }
-  }, [user, isAuthLoading, isLoginRoute, router]);
+  }, [mounted, uid, introPhase, hasHydrated]);
 
-  const showLoading = !forceUnlocked && isAuthLoading && !user;
+  if (!mounted) return <BootFrame />;
 
   return (
-    <>
-      {/* Show loading overlay if auth is loading or fetching cloud data */}
-      {showLoading && (
-        <div className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-obsidian-black text-white w-full">
-          <motion.div
-            animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-            className="w-16 h-16 border-t-2 border-r-2 border-neon-red rounded-full mb-4"
-            style={{ borderBottom: '2px solid transparent', borderLeft: '2px solid transparent' }}
-          />
-          <p className="font-mono text-sm uppercase tracking-widest text-neon-red-bright animate-pulse mb-4">
-            Verificando credenciales...
-          </p>
-          <button
-            onClick={() => useAuthStore.setState({ isAuthLoading: false })}
-            className="mt-4 px-4 py-2 border border-surface-border rounded-lg text-xs font-mono text-text-dim hover:text-white"
-          >
-            Saltar verificación &rarr;
-          </button>
-        </div>
+    <MotionConfig reducedMotion="user">
+      <IntroExperience hasUser={Boolean(user)} />
+      {!user ? (
+        <LoginScreen />
+      ) : (
+        <>
+          <GlobalHeader />
+          <main id="main" className="relative flex-1" aria-hidden={tutorialActive && undefined}>
+            <HydrationGuard>{children}</HydrationGuard>
+          </main>
+          <Navigation />
+          <NotificationsDrawer />
+          <SettingsModal />
+          <Tutorial />
+        </>
       )}
-
-      {/* Main Content Rendering Logic */}
-      <div className={showLoading ? 'hidden' : 'contents'}>
-        {!user ? (
-           <LoginPage />
-        ) : (
-          <>
-            <GlobalHeader />
-            <main className={`flex-1 relative pb-32`}>
-              <HydrationGuard>
-                {children}
-              </HydrationGuard>
-            </main>
-            <Navigation />
-            <NotificationsDrawer />
-            <SettingsModal />
-          </>
-        )}
-      </div>
-    </>
+      <Toaster />
+    </MotionConfig>
   );
 }

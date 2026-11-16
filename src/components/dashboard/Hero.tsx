@@ -1,149 +1,196 @@
 'use client';
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Activity, Play } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { Play, X, Activity } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { Modal } from '@/components/ui/Modal';
+import { CrystalMark } from '@/components/brand/CrystalMark';
 import { useGameStore } from '@/store/useGameStore';
+import { useTranslation } from '@/i18n/useTranslation';
+import { toast } from '@/store/useToastStore';
+import { tSlow } from '@/lib/motion';
+import { cn } from '@/lib/cn';
 
+const REGIONS = [
+  { id: 'bog', label: 'LATAM North · Bogotá' },
+  { id: 'vir', label: 'US East · Virginia' },
+  { id: 'sao', label: 'Brazil South · São Paulo' },
+];
+const ROLES = ['roleAssault', 'roleSupport', 'roleRecon'] as const;
+const SESSION_HOURS = 3;
+
+// Deterministic "motes" so the art is identical on server and client.
+const MOTES = Array.from({ length: 22 }, (_, i) => ({
+  left: (i * 37) % 100,
+  top: (i * 53) % 100,
+  size: 1 + (i % 3),
+  delay: (i % 7) * 0.4,
+  mint: i % 6 === 0,
+}));
+
+type ArenaPhase = 'setup' | 'running' | 'done';
+
+/**
+ * Home hero. Original art in the intro's language (crystal + motes), no stock photo.
+ * "Neon Arena" is a clearly labelled SIMULATION: it only writes hours if the player says yes.
+ */
 export const Hero = () => {
   const router = useRouter();
-  const [showMatchModal, setShowMatchModal] = useState(false);
-  const [sessionActive, setSessionActive] = useState(false);
-  const [activeRegion, setActiveRegion] = useState('LATAM North - Bogotá');
-  const [activeRole, setActiveRole] = useState('Assault / DPS');
-  const { logPlaySession } = useGameStore();
+  const { t } = useTranslation();
+  const games = useGameStore((s) => s.games);
+  const logPlaySession = useGameStore((s) => s.logPlaySession);
+  const [open, setOpen] = useState(false);
+  const [phase, setPhase] = useState<ArenaPhase>('setup');
+  const [region, setRegion] = useState(REGIONS[0].id);
+  const [role, setRole] = useState<(typeof ROLES)[number]>(ROLES[0]);
 
-  const handleDetailsClick = () => {
-    // Navigate to a featured game ID (example: Neon White ID from mock, or generic search)
-    router.push('/game/view?id=g1');
+  const playing = games.find((g) => g.status === 'PLAYING');
+
+  useEffect(() => {
+    if (phase !== 'running') return;
+    const timer = setTimeout(() => setPhase('done'), 2400);
+    return () => clearTimeout(timer);
+  }, [phase]);
+
+  const close = () => {
+    setOpen(false);
+    setTimeout(() => setPhase('setup'), 300);
   };
 
-  const handleStartSession = () => {
-    setSessionActive(true);
-    let seconds = 0;
-    const interval = setInterval(() => {
-      seconds++;
-      if (seconds >= 2) {
-        clearInterval(interval);
-        setSessionActive(false);
-        setShowMatchModal(false);
-        logPlaySession('g1', 3); // mock log 3 hours to favorite game
-        alert('¡Sesión finalizada! Has ganado +100 XP y se han registrado 3 horas de juego.');
-      }
-    }, 1000);
+  const logSession = () => {
+    if (!playing) return;
+    logPlaySession(playing.id, SESSION_HOURS);
+    toast(t('game.logged', { n: SESSION_HOURS, title: playing.title }), 'success');
+    close();
   };
+
+  const option = (active: boolean, tone: 'red' | 'mint') =>
+    cn(
+      'flex min-h-[44px] w-full items-center rounded-xl border px-3 text-left font-mono text-xs transition-colors duration-150',
+      active
+        ? tone === 'red'
+          ? 'border-neon-red/50 bg-neon-red/15 text-neon-red-bright'
+          : 'border-mint-green/50 bg-mint-green/15 text-mint-green'
+        : 'border-transparent text-text-dim hover:bg-white/5 hover:text-white'
+    );
 
   return (
     <>
-      <div className="relative w-[calc(100%-2rem)] md:w-[calc(100%-4rem)] h-[60vh] min-h-[400px] max-h-[600px] rounded-3xl overflow-hidden mt-6 md:mt-8 mx-4 md:mx-8 shadow-glass">
-        {/* Background Image & Gradient Overlay */}
-        <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-transform duration-1000 hover:scale-105"
-          style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop")' }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-t from-obsidian-black via-obsidian-dark/80 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-obsidian-black via-obsidian-dark/60 to-transparent" />
-        </div>
+      <section className="px-4 pt-5">
+        {/* Always-dark art card, equal margins and radius on every side. */}
+        <div data-theme="dark" className="relative h-[340px] overflow-hidden rounded-3xl border border-surface-border bg-[#07070b] shadow-glass">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_78%_30%,rgba(229,9,20,0.32),transparent_58%)]" />
+          <div className="scanlines absolute inset-0 opacity-40" />
+          {MOTES.map((m, i) => (
+            <span
+              key={i}
+              className={cn('absolute animate-pulse-ring rounded-full', m.mint ? 'bg-mint-green' : 'bg-neon-red-bright')}
+              style={{ left: `${m.left}%`, top: `${m.top}%`, width: m.size, height: m.size, animationDelay: `${m.delay}s` }}
+            />
+          ))}
+          <div className="absolute -right-14 -top-10 h-[270px] w-[220px]" aria-hidden>
+            <div className="absolute inset-8 animate-spin-slow rounded-full border border-dashed border-neon-red/30" />
+            <CrystalMark animation="idle" className="relative h-full w-full" />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#07070b] via-[#07070b]/55 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#07070b]/85 via-transparent to-transparent" />
 
-        {/* Content */}
-        <div className="absolute inset-0 p-6 md:p-12 flex flex-col justify-end">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-            className="max-w-3xl space-y-4"
+            transition={tSlow}
+            className="absolute inset-0 flex flex-col justify-end p-5"
           >
-            <Badge variant="live" className="mb-4">Live Tournament</Badge>
-            <h1 className="text-4xl md:text-6xl font-heading font-black text-white tracking-tighter leading-tight text-balance uppercase">
-              Neon Arena <br /> <span className="text-neon-red-bright">CHAMPIONSHIP 2026</span>
+            <Badge variant="live" className="mb-3 self-start">
+              {t('home.heroBadge')}
+            </Badge>
+            <h1 className="font-heading text-[2.1rem] font-black uppercase leading-[0.95] tracking-tight text-white">
+              {t('home.heroTitle')}
+              <span className="block text-neon-red-bright text-glow-red">{t('home.heroSubtitle')}</span>
             </h1>
-            <p className="text-text-dim text-sm md:text-base font-mono tracking-wide max-w-xl pb-4 uppercase">
-              Join the ultimate competitive experience. Prove your skills and climb the ranks.
-            </p>
-
-            <div className="flex items-center gap-4">
-              <Button variant="neon" size="lg" className="gap-2" onClick={() => setShowMatchModal(true)}>
-                <Play fill="currentColor" size={20} />
-                JOIN MATCH
+            <p className="mt-2.5 max-w-[250px] text-[13px] leading-snug text-white/70">{t('home.heroBody')}</p>
+            <div className="mt-4 flex gap-2.5">
+              <Button variant="neon" size="sm" onClick={() => setOpen(true)} data-action="arena">
+                <Play size={15} fill="currentColor" aria-hidden />
+                {t('home.heroEnter')}
               </Button>
-              <Button variant="secondary" size="lg" onClick={handleDetailsClick}>
-                Details
+              <Button variant="secondary" size="sm" onClick={() => router.push('/discover')}>
+                {t('home.heroExplore')}
               </Button>
             </div>
           </motion.div>
         </div>
-      </div>
+      </section>
 
-      <AnimatePresence>
-        {showMatchModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-obsidian-black/80 backdrop-blur-sm" onClick={() => !sessionActive && setShowMatchModal(false)} />
-            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} className="relative bg-obsidian-dark border border-surface-border p-6 rounded-3xl w-full max-w-sm shadow-[0_0_50px_rgba(255,42,85,0.15)] overflow-hidden">
-              {sessionActive && (
-                <div className="absolute inset-0 border-[3px] border-neon-red-bright rounded-3xl opacity-50 animate-pulse pointer-events-none" />
-              )}
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="font-heading font-bold text-xl text-white uppercase flex items-center gap-2">
-                  <Activity className={sessionActive ? "text-neon-red-bright animate-pulse" : "text-text-dim"} />
-                  {sessionActive ? 'TELEMETRY ACTIVE' : 'MATCHMAKING'}
-                </h3>
-                {!sessionActive && <button onClick={() => setShowMatchModal(false)} className="text-text-dim hover:text-white"><X size={20} /></button>}
+      <Modal open={open} onClose={close} title={t('home.arenaTitle')} eyebrow={t('common.simulated')} dismissible={phase !== 'running'}>
+        {phase === 'setup' && (
+          <div className="flex flex-col gap-4">
+            <fieldset>
+              <legend className="eyebrow mb-1.5">{t('home.arenaRegion')}</legend>
+              <div className="flex flex-col gap-1 rounded-2xl border border-surface-border bg-obsidian-black p-1" role="radiogroup">
+                {REGIONS.map((r) => (
+                  <button key={r.id} type="button" role="radio" aria-checked={region === r.id} onClick={() => setRegion(r.id)} className={option(region === r.id, 'red')}>
+                    {r.label}
+                  </button>
+                ))}
               </div>
-
-              {!sessionActive ? (
-                <div className="flex flex-col gap-4">
-                  <div className="relative">
-                    <label className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1 block">Server Region</label>
-                    <div className="flex flex-col gap-1 border border-surface-border p-1 rounded-xl bg-obsidian-black">
-                      {['LATAM North - Bogotá', 'US East - Virginia', 'Brazil South - SP'].map(region => (
-                        <button
-                          key={region}
-                          type="button"
-                          onClick={() => setActiveRegion(region)}
-                          className={`w-full text-left px-3 py-2 rounded-lg font-mono text-xs transition-colors ${activeRegion === region ? 'bg-neon-red/20 text-neon-red-bright border border-neon-red/30' : 'text-text-dim hover:text-white hover:bg-white/5'}`}
-                        >
-                          {region} {region === 'LATAM North - Bogotá' ? '(42ms)' : region === 'US East - Virginia' ? '(89ms)' : '(125ms)'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="relative">
-                    <label className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1 block">Squad Role</label>
-                    <div className="flex flex-col gap-1 border border-surface-border p-1 rounded-xl bg-obsidian-black">
-                      {['Assault / DPS', 'Tactical Support', 'Recon'].map(role => (
-                        <button
-                          key={role}
-                          type="button"
-                          onClick={() => setActiveRole(role)}
-                          className={`w-full text-left px-3 py-2 rounded-lg font-mono text-xs transition-colors ${activeRole === role ? 'bg-mint-green/20 text-mint-green border border-mint-green/30' : 'text-text-dim hover:text-white hover:bg-white/5'}`}
-                        >
-                          {role}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <Button variant="neon" className="w-full mt-4" onClick={handleStartSession}>
-                    INITIALIZE SESSION
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center py-8">
-                  <div className="w-24 h-24 rounded-full border-4 border-t-neon-red-bright border-r-neon-red-bright border-b-surface-border border-l-surface-border animate-spin mb-6" />
-                  <p className="font-mono text-sm font-bold text-neon-red-bright uppercase tracking-widest animate-pulse">
-                    LINK ESTABLISHED
-                  </p>
-                  <p className="font-mono text-[10px] text-text-dim mt-2 uppercase">
-                    Syncing telemetry data...
-                  </p>
-                </div>
-              )}
-            </motion.div>
+            </fieldset>
+            <fieldset>
+              <legend className="eyebrow mb-1.5">{t('home.arenaRole')}</legend>
+              <div className="flex flex-col gap-1 rounded-2xl border border-surface-border bg-obsidian-black p-1" role="radiogroup">
+                {ROLES.map((r) => (
+                  <button key={r} type="button" role="radio" aria-checked={role === r} onClick={() => setRole(r)} className={option(role === r, 'mint')}>
+                    {t(`home.${r}`)}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+            <Button variant="neon" className="mt-1 w-full" onClick={() => setPhase('running')} data-action="arena-start">
+              {t('home.arenaStart')}
+            </Button>
           </div>
         )}
-      </AnimatePresence>
+
+        {phase === 'running' && (
+          <div className="flex flex-col items-center py-8" role="status">
+            <div className="relative mb-6 flex h-24 w-24 items-center justify-center">
+              <span className="absolute inset-0 animate-spin rounded-full border-4 border-surface-border border-t-neon-red-bright" />
+              <Activity size={28} className="animate-pulse-ring text-neon-red-bright" aria-hidden />
+            </div>
+            <p className="font-mono text-sm font-bold uppercase tracking-widest text-neon-red-bright">{t('home.arenaRunning')}</p>
+            <p className="mt-2 font-mono text-[11px] uppercase text-text-dim">{t('home.arenaSync')}</p>
+          </div>
+        )}
+
+        {phase === 'done' && (
+          <div className="flex flex-col gap-4" role="status">
+            <div>
+              <p className="font-heading text-base font-bold uppercase text-white">{t('home.arenaDoneTitle')}</p>
+              <p className="mt-1 text-sm leading-relaxed text-text-dim">{t('home.arenaDoneBody')}</p>
+            </div>
+            {playing ? (
+              <div className="rounded-2xl border border-surface-border bg-white/5 p-4">
+                <p className="mb-3 text-sm font-medium text-white">{t('home.arenaLogAsk', { game: playing.title })}</p>
+                <div className="flex flex-col gap-2">
+                  <Button variant="mint" size="sm" className="w-full" onClick={logSession} data-action="arena-log">
+                    {t('home.arenaLogYes')}
+                  </Button>
+                  <Button variant="ghost" size="sm" className="w-full" onClick={close}>
+                    {t('home.arenaLogNo')}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button variant="ghost" className="w-full" onClick={close}>
+                {t('common.close')}
+              </Button>
+            )}
+          </div>
+        )}
+      </Modal>
     </>
   );
 };

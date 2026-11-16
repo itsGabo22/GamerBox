@@ -1,29 +1,23 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useGameStore } from '@/store/useGameStore';
-import { motion } from 'framer-motion';
+import { useTranslation } from '@/i18n/useTranslation';
 
+/** Skeleton shown while this account's library is read from storage. */
 export function HydrationGuard({ children }: { children: React.ReactNode }) {
   const hasHydrated = useGameStore((state) => state.hasHydrated);
-  const [mounted, setMounted] = useState(false);
+  const { t } = useTranslation();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted || !hasHydrated) {
+  if (!hasHydrated) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] w-full text-white">
-        <motion.div
-          animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
-          transition={{ repeat: Infinity, duration: 1.5 }}
-          className="w-16 h-16 border-t-2 border-r-2 border-neon-red rounded-full"
-          style={{ borderBottom: '2px solid transparent', borderLeft: '2px solid transparent' }}
-        />
-        <p className="mt-4 font-mono text-sm uppercase tracking-widest text-text-dim">
-          Inicializando base de datos...
-        </p>
+      <div className="flex w-full flex-col gap-6 px-4 pt-6" role="status" aria-label={t('common.opening')}>
+        <div className="skeleton h-8 w-40 rounded-lg" />
+        <div className="skeleton h-44 w-full rounded-3xl" />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="skeleton aspect-[2/3]" />
+          <div className="skeleton aspect-[2/3]" />
+        </div>
       </div>
     );
   }

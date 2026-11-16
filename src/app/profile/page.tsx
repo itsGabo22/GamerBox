@@ -1,374 +1,313 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Camera, GraduationCap, LogOut, Pencil, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { GameCard } from '@/components/dashboard/GameCard';
-import { useGameStore } from '@/store/useGameStore';
-import { useAuthStore } from '@/store/useAuthStore';
-import { useTranslation } from '@/i18n/useTranslation';
-import { LogOut, Edit2, X, Camera, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
+import { Avatar } from '@/components/ui/Avatar';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { DeleteAccountDialog } from '@/components/settings/DeleteAccountDialog';
+import { useGameStore } from '@/store/useGameStore';
+import { GAMERTAG_RE, useAuthStore } from '@/store/useAuthStore';
+import { useTutorialStore } from '@/store/useTutorialStore';
+import { toast } from '@/store/useToastStore';
+import { useTranslation, genreLabel } from '@/i18n/useTranslation';
+import { formatNumber } from '@/i18n/format';
+import { getProgression } from '@/lib/progression';
+import { EASE_OUT, fadeUp, stagger } from '@/lib/motion';
+import { cn } from '@/lib/cn';
 
-import { useRouter } from 'next/navigation';
-
+// Original geometric avatars (inline SVG, full-bleed so they fill the circle).
+const svg = (body: string) => `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#12141D"/>${body}</svg>`)}`;
 const AVATAR_PRESETS = [
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230D0F18"/><circle cx="50" cy="50" r="30" fill="none" stroke="%23ff2a55" stroke-width="4"/><path d="M 30 50 L 70 50 M 50 30 L 50 70" stroke="%23ff2a55" stroke-width="4"/></svg>',
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230D0F18"/><polygon points="50,20 80,80 20,80" fill="none" stroke="%235ee6a8" stroke-width="4"/><circle cx="50" cy="60" r="10" fill="%235ee6a8"/></svg>',
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230D0F18"/><rect x="25" y="25" width="50" height="50" fill="none" stroke="%23ff2a55" stroke-width="4" transform="rotate(45 50 50)"/><circle cx="50" cy="50" r="15" fill="%23ff2a55"/></svg>',
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230D0F18"/><path d="M 20 20 Q 50 80 80 20" fill="none" stroke="%235ee6a8" stroke-width="6"/><circle cx="50" cy="30" r="8" fill="%235ee6a8"/></svg>',
+  svg('<path d="M50 8 88 38 76 86 50 96 24 86 12 38Z" fill="#1c0508" stroke="#ff003c" stroke-width="4"/><path d="M50 8v88M12 38l38 14 38-14" stroke="#ff003c" stroke-width="2.5" fill="none"/>'),
+  svg('<circle cx="50" cy="50" r="34" fill="#06231a" stroke="#5ee6a8" stroke-width="4"/><path d="M22 50c9-13 18-19 28-19s19 6 28 19c-9 13-18 19-28 19s-19-6-28-19Z" fill="none" stroke="#5ee6a8" stroke-width="3"/><circle cx="50" cy="50" r="8" fill="#5ee6a8"/>'),
+  svg('<rect x="22" y="22" width="56" height="56" fill="#1c0508" stroke="#ff003c" stroke-width="4" transform="rotate(45 50 50)"/><circle cx="50" cy="50" r="13" fill="#ff003c"/>'),
+  svg('<path d="M14 70 38 30 52 54 64 38 86 70Z" fill="#06231a" stroke="#5ee6a8" stroke-width="4" stroke-linejoin="round"/><circle cx="72" cy="26" r="7" fill="#ff003c"/>'),
 ];
 
 export default function ProfilePage() {
-  const games = useGameStore(state => state.games);
-  const { user, logout, deleteAccount, updateUserProfile } = useAuthStore();
-  const { clearLibrary } = useGameStore();
-  const { t } = useTranslation();
+  const games = useGameStore((state) => state.games);
+  const { user, logout, updateUserProfile } = useAuthStore();
+  const startTutorial = useTutorialStore((s) => s.start);
+  const { t, language } = useTranslation();
   const router = useRouter();
-
-  const [isEditing, setIsEditing] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [editForm, setEditForm] = useState({
-    displayName: user?.displayName || '',
-    title: user?.title || 'CYBER MERCENARY',
-    bio: user?.bio || 'Explorador del ecosistema GamerBox.',
-    photoURL: user?.photoURL || ''
-  });
-
-  const completedGames = games.filter(g => g.status === 'COMPLETED' || g.progress === 100);
-  const playingGames = games.filter(g => g.status === 'PLAYING');
-  const favoriteGames = games.filter(g => g.isFavorite);
-
-  const totalHours = games.reduce((acc, game) => acc + (game.hoursPlayed || parseInt(game.timePlayed) || 0), 0);
-  const xp = completedGames.length * 500 + playingGames.length * 200 + favoriteGames.length * 150 + games.length * 50;
-  const level = Math.max(1, Math.floor(xp / 1000) + 1);
-  const nextLevelXp = level * 1000;
-  const xpProgressPercent = Math.min(100, Math.round(((xp % 1000) / 1000) * 100));
-
-  const totalGamesCount = games.length || 1;
-
-  // Dynamically aggregate genres
-  const genreCounts: Record<string, number> = {};
-  games.forEach(g => {
-    if (g.genre) {
-      genreCounts[g.genre] = (genreCounts[g.genre] || 0) + 1;
-    }
-  });
-
-  const genres = Object.entries(genreCounts)
-    .map(([label, count]) => ({
-      label,
-      percentage: Math.round((count / totalGamesCount) * 100)
-    }))
-    .filter(g => g.percentage > 0)
-    .sort((a, b) => b.percentage - a.percentage);
-
-  const PRESET_TITLES = ["CYBER MERCENARY", "PLATINUM HUNTER", "LORE MASTER", "SPEEDRUNNER"];
-
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSaveProfile = async (e: React.FormEvent) => {
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [form, setForm] = useState({ displayName: '', title: '', bio: '', photoURL: '' });
+  const [nameError, setNameError] = useState(false);
+
+  const name = user?.displayName || 'Player';
+  const title = user?.title || t('profile.defaultTitle');
+  const bio = user?.bio || t('profile.defaultBio');
+
+  useEffect(() => {
+    if (editing) {
+      setForm({ displayName: user?.displayName || '', title: user?.title || '', bio: user?.bio || '', photoURL: user?.photoURL || '' });
+      setNameError(false);
+    }
+  }, [editing, user]);
+
+  const stats = useMemo(() => getProgression(games), [games]);
+  const favorites = games.filter((g) => g.isFavorite);
+
+  const genres = useMemo(() => {
+    const counts: Record<string, number> = {};
+    games.forEach((g) => {
+      const key = (g.genre || 'UNKNOWN').toUpperCase();
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([label, count]) => ({ label, percentage: Math.round((count / games.length) * 100) }))
+      .sort((a, b) => b.percentage - a.percentage)
+      .slice(0, 6);
+  }, [games]);
+
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    await updateUserProfile(editForm);
-    setIsEditing(false);
+    const displayName = form.displayName.trim();
+    if (!GAMERTAG_RE.test(displayName)) {
+      setNameError(true);
+      return;
+    }
+    await updateUserProfile({ displayName, title: form.title.trim().slice(0, 30), bio: form.bio.trim().slice(0, 160), photoURL: form.photoURL || null });
+    setEditing(false);
+    toast(t('profile.saved'), 'success');
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Gallery photo → centered square crop → small JPEG, so it always fills the circle.
+  const onPickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 240;
-        canvas.height = 240;
-
-        // Simple crop to center
-        const size = Math.min(img.width, img.height);
-        const startX = (img.width - size) / 2;
-        const startY = (img.height - size) / 2;
-
-        ctx?.drawImage(img, startX, startY, size, size, 0, 0, 240, 240);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-        setEditForm(prev => ({ ...prev, photoURL: dataUrl }));
-      };
-      if (typeof event.target?.result === 'string') {
-        img.src = event.target.result;
-      }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const size = Math.min(img.width, img.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 240;
+      canvas.getContext('2d')?.drawImage(img, (img.width - size) / 2, (img.height - size) / 2, size, size, 0, 0, 240, 240);
+      setForm((prev) => ({ ...prev, photoURL: canvas.toDataURL('image/jpeg', 0.82) }));
+      URL.revokeObjectURL(url);
     };
-    reader.readAsDataURL(file);
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.src = url;
   };
 
-  const handleDeleteAccount = async () => {
-    await deleteAccount();
-    clearLibrary();
-    router.replace('/login');
-  };
+  const kpis = [
+    { label: t('profile.games'), value: formatNumber(stats.totalGames, language), tone: 'text-white' },
+    { label: t('profile.platinums'), value: formatNumber(stats.completed, language), tone: 'text-mint-green' },
+    { label: t('profile.totalTime'), value: formatNumber(stats.totalHours, language), tone: 'text-white' },
+  ];
 
   return (
-    <div className="flex flex-col w-full px-4 pt-6 md:px-8 pb-12 overflow-x-hidden">
-      {/* Identity Hero */}
-      <motion.section 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col items-center justify-center text-center mb-8"
-      >
+    <motion.div variants={stagger} initial="hidden" animate="show" className="pb-nav flex w-full flex-col gap-8 px-4 pt-6">
+      <motion.section variants={fadeUp} className="flex flex-col items-center text-center">
         <div className="relative mb-4">
-          <div className="absolute inset-0 rounded-full bg-neon-red blur-[20px] opacity-20" />
-          <div 
-            className="relative w-24 h-24 rounded-full border-2 border-neon-red shadow-[0_0_20px_rgba(255,42,85,0.4)] bg-obsidian-black flex items-center justify-center overflow-hidden"
-            aria-label={`Avatar de ${user?.displayName || 'Player'}`}
-          >
-            {user?.photoURL ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={user.photoURL}
-                alt="Avatar"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  e.currentTarget.parentElement?.classList.add('fallback-active');
-                }}
-              />
-            ) : null}
-
-            {(!user?.photoURL || false) && (
-              <span className="font-heading font-black text-3xl text-neon-red-bright drop-shadow-md fallback-text absolute">
-                {(user?.displayName?.substring(0,2) || 'P1').toUpperCase()}
-              </span>
-            )}
-          </div>
+          <div className="absolute inset-0 rounded-full bg-neon-red opacity-25 blur-xl" aria-hidden />
+          <Avatar name={name} src={user?.photoURL} alt={t('profile.avatarAlt', { name })} className="relative h-24 w-24 border-2 border-neon-red text-3xl shadow-neon" />
         </div>
-        
-        <div className="flex items-center gap-2 mb-1">
-          <h1 className="font-heading font-bold text-2xl text-white">
-            {user?.displayName || 'Player One'}
-          </h1>
-          <button onClick={() => setIsEditing(true)} className="text-text-dim hover:text-white transition-colors">
-            <Edit2 size={16} />
+
+        <div className="flex items-center gap-1">
+          <h1 className="font-heading text-2xl font-bold text-white">{name}</h1>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label={t('profile.edit')}
+            data-action="edit-profile"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-text-dim transition-colors hover:text-white"
+          >
+            <Pencil size={16} />
           </button>
         </div>
+        <p className="eyebrow -mt-1.5">{title}</p>
+        <p className="selectable mt-2 max-w-[280px] text-sm leading-relaxed text-white/70">{bio}</p>
 
-        <p className="font-mono text-xs font-bold tracking-widest text-text-dim uppercase mb-2">
-          {user?.title || 'CYBER MERCENARY'} • LVL {level}
-        </p>
-
-        <p className="font-body text-sm text-white/70 max-w-[280px] leading-relaxed">
-          {user?.bio || 'Explorador del ecosistema GamerBox.'}
-        </p>
-
-        {/* XP Progress */}
-        <div className="w-full max-w-[240px] mt-6">
-          <div className="flex justify-between items-center mb-2">
-            <span className="font-mono text-[10px] text-text-dim uppercase">{t('profile.progress')}</span>
-            <span className="font-mono text-[10px] text-white">
-              <span className="text-neon-red-bright">{xp.toLocaleString()}</span> / {nextLevelXp.toLocaleString()} XP
-            </span>
-          </div>
-          <div className="h-1.5 w-full bg-obsidian-dark rounded-full overflow-hidden border border-white/5">
-            <motion.div 
-              initial={{ width: 0 }}
-              animate={{ width: `${xpProgressPercent}%` }}
-              transition={{ duration: 1, delay: 0.2, ease: "easeOut" }}
-              className="h-full bg-neon-red shadow-neon-bright"
-            />
-          </div>
-        </div>
-      </motion.section>
-
-      {/* KPI Grid */}
-      <motion.section 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="grid grid-cols-3 gap-3 mb-8"
-      >
-        <GlassPanel className="p-4 flex flex-col items-center justify-center text-center">
-          <p className="font-mono text-[9px] text-text-dim mb-1 tracking-widest uppercase truncate w-full">{t('profile.daysStreak')}</p>
-          <p className="font-heading font-black text-2xl text-white">
-            {Math.max(1, Math.floor(completedGames.length / 2))}
-          </p>
-        </GlassPanel>
-        <GlassPanel className="p-4 flex flex-col items-center justify-center text-center">
-          <p className="font-mono text-[9px] text-text-dim mb-1 tracking-widest uppercase truncate w-full">{t('profile.platinums')}</p>
-          <p className="font-heading font-black text-2xl text-mint-green drop-shadow-[0_0_8px_rgba(94,230,168,0.5)]">{completedGames.length}</p>
-        </GlassPanel>
-        <GlassPanel className="p-4 flex flex-col items-center justify-center text-center">
-          <p className="font-mono text-[9px] text-text-dim mb-1 tracking-widest uppercase truncate w-full">{t('profile.totalTime')}</p>
-          <p className="font-heading font-black text-2xl text-white">{totalHours}h</p>
-        </GlassPanel>
-      </motion.section>
-
-      {/* Favoritos Históricos */}
-      <motion.section 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="mb-8"
-      >
-        <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-text-dim mb-4 px-2">
-          {t('profile.favorites')}
-        </h2>
-        <div className="grid grid-cols-2 gap-4">
-          {favoriteGames.map(game => (
-            <div key={game.id} className="relative group">
-              <div className="absolute -inset-0.5 bg-neon-red/30 rounded-2xl blur opacity-70 group-hover:opacity-100 transition duration-500 pointer-events-none" />
-              <div className="relative rounded-2xl ring-1 ring-neon-red/50 overflow-hidden">
-                <GameCard game={game} />
-              </div>
+        <div className="glass-panel mt-5 w-full rounded-2xl p-4 text-left" data-tour="profile-xp">
+          <div className="mb-2.5 flex items-end justify-between">
+            <div>
+              <p className="eyebrow">{t('profile.progress')}</p>
+              <p className="font-heading text-xl font-black uppercase leading-tight text-white">{t('profile.level', { n: stats.level })}</p>
             </div>
-          ))}
+            <p className="font-mono text-[11px] font-bold text-text-dim">
+              <span className="text-neon-red-bright">{formatNumber(stats.xp, language)}</span> / {formatNumber(stats.nextLevelXp, language)} XP
+            </p>
+          </div>
+          <div
+            className="h-2 w-full overflow-hidden rounded-full bg-white/10"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={stats.percent}
+            aria-label={t('profile.progress')}
+          >
+            <motion.div initial={{ width: 0 }} animate={{ width: `${stats.percent}%` }} transition={{ duration: 0.6, delay: 0.15, ease: EASE_OUT }} className="h-full rounded-full bg-neon-red shadow-neon-bright" />
+          </div>
         </div>
       </motion.section>
 
-      {/* Genre Distribution */}
-      <motion.section 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-      >
-        <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-text-dim mb-4 px-2">
-          {t('profile.genreDist')}
-        </h2>
-        <GlassPanel className="p-5 flex flex-col gap-4">
-          {genres.length === 0 ? (
-            <p className="text-text-dim text-xs font-mono text-center py-4">Juega para generar estadísticas.</p>
-          ) : (
-            genres.map((genre, i) => (
-              <div key={genre.label} className="w-full">
-                <div className="flex justify-between items-end mb-2">
-                  <span className="font-heading text-sm font-bold text-white tracking-wide">{genre.label}</span>
-                  <span className="font-mono text-[10px] font-bold text-text-dim">{genre.percentage}%</span>
-                </div>
-                <div className="h-1.5 w-full bg-obsidian-black rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${genre.percentage}%` }}
-                    transition={{ duration: 1, delay: 0.4 + (i * 0.1), ease: "easeOut" }}
-                    className="h-full bg-mint-green shadow-[0_0_8px_rgba(94,230,168,0.5)]"
-                  />
-                </div>
-              </div>
-            ))
-          )}
-        </GlassPanel>
+      <motion.dl variants={fadeUp} className="grid grid-cols-3 gap-3">
+        {kpis.map((kpi) => (
+          <GlassPanel key={kpi.label} className="flex flex-col-reverse items-center gap-1.5 px-2 py-4 text-center">
+            {/* Short labels that wrap instead of truncating. */}
+            <dt className="font-mono text-[9px] font-bold uppercase leading-tight tracking-wider text-text-dim">{kpi.label}</dt>
+            <dd className={cn('font-heading text-2xl font-black leading-none', kpi.tone)}>{kpi.value}</dd>
+          </GlassPanel>
+        ))}
+      </motion.dl>
+
+      <motion.section variants={fadeUp}>
+        <h2 className="eyebrow mb-3">{t('profile.favorites')}</h2>
+        {favorites.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3">
+            {favorites.map((game) => (
+              <GameCard key={game.id} game={game} className="border-neon-red/50" />
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            art="heart"
+            compact
+            title={t('profile.favEmptyTitle')}
+            body={t('profile.favEmptyBody')}
+            actionLabel={games.length > 0 ? t('profile.favEmptyCta') : undefined}
+            onAction={() => router.push('/backlog')}
+          />
+        )}
       </motion.section>
 
-      {/* Logout Action */}
-      <motion.section
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="mt-12 mb-8 px-4 flex flex-col gap-3"
-      >
-        <button
-          onClick={() => logout()}
-          className="w-full flex items-center justify-center gap-2 h-14 bg-obsidian-dark border border-neon-red/30 rounded-2xl text-neon-red-bright font-mono text-xs font-bold tracking-widest uppercase transition-all hover:bg-neon-red/10 shadow-[0_0_15px_rgba(255,42,85,0.1)] active:scale-95"
+      <motion.section variants={fadeUp}>
+        <h2 className="eyebrow mb-3">{t('profile.genreDist')}</h2>
+        {genres.length === 0 ? (
+          <EmptyState art="chart" compact title={t('profile.genreEmpty')} />
+        ) : (
+          <GlassPanel className="flex flex-col gap-4 p-5">
+            {genres.map((genre, i) => (
+              <div key={genre.label}>
+                <div className="mb-1.5 flex items-end justify-between">
+                  <span className="font-heading text-sm font-bold text-white">{genreLabel(t, genre.label)}</span>
+                  <span className="font-mono text-[11px] font-bold text-text-dim">{genre.percentage}%</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                  <motion.div initial={{ width: 0 }} animate={{ width: `${genre.percentage}%` }} transition={{ duration: 0.6, delay: 0.1 + i * 0.05, ease: EASE_OUT }} className="h-full rounded-full bg-mint-green" />
+                </div>
+              </div>
+            ))}
+          </GlassPanel>
+        )}
+      </motion.section>
+
+      <motion.section variants={fadeUp} className="flex flex-col gap-3">
+        <Button
+          variant="secondary"
+          className="w-full"
+          onClick={() => {
+            router.push('/');
+            setTimeout(startTutorial, 350);
+          }}
         >
-          <LogOut size={16} />
+          <GraduationCap size={17} aria-hidden />
+          {t('profile.replayTutorial')}
+        </Button>
+        <Button variant="ghost" className="w-full" onClick={() => logout()} data-action="logout">
+          <LogOut size={16} aria-hidden />
           {t('profile.logout')}
-        </button>
-        <button
-          onClick={() => setIsDeleting(true)}
-          className="w-full flex items-center justify-center gap-2 h-10 bg-transparent text-text-dim font-mono text-[10px] font-bold tracking-widest uppercase transition-all hover:text-neon-red"
-        >
-          <AlertTriangle size={14} /> ELIMINAR CUENTA PERMANENTEMENTE
-        </button>
+        </Button>
+        <Button variant="danger" className="w-full" onClick={() => setDeleting(true)}>
+          <Trash2 size={16} aria-hidden />
+          {t('profile.deleteAccount')}
+        </Button>
       </motion.section>
 
-      {/* Delete Account Confirmation Modal */}
-      <AnimatePresence>
-        {isDeleting && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center px-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-obsidian-black/90 backdrop-blur-sm" onClick={() => setIsDeleting(false)} />
-            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} className="relative bg-obsidian-dark border border-neon-red/50 p-6 rounded-3xl w-full max-w-sm shadow-[0_0_30px_rgba(255,42,85,0.2)]">
-              <h3 className="font-heading font-bold text-xl text-white uppercase mb-3 flex items-center gap-2"><AlertTriangle className="text-neon-red-bright" /> ¿ELIMINAR CUENTA?</h3>
-              <p className="font-body text-sm text-text-dim mb-6 leading-relaxed">
-                ¿Estás seguro de eliminar tu cuenta <span className="text-white font-bold">@{user?.displayName}</span>? Se borrarán tu bóveda de juegos, progreso y credenciales de forma <span className="text-neon-red-bright font-bold">irreversible</span>.
-              </p>
-              <div className="flex flex-col gap-3">
-                <Button variant="neon" className="w-full" onClick={handleDeleteAccount}>Sí, Eliminar Cuenta</Button>
-                <Button variant="ghost" className="w-full border border-surface-border text-text-dim hover:text-white" onClick={() => setIsDeleting(false)}>Cancelar</Button>
-              </div>
-            </motion.div>
+      <DeleteAccountDialog open={deleting} onClose={() => setDeleting(false)} />
+
+      <Modal open={editing} onClose={() => setEditing(false)} title={t('profile.edit')} variant="sheet">
+        <form onSubmit={save} className="flex flex-col gap-5">
+          <div className="flex flex-col items-center gap-3">
+            <Avatar name={form.displayName || name} src={form.photoURL} className="h-20 w-20 border-2 text-2xl" />
+            <div className="flex items-center gap-2.5" role="radiogroup" aria-label={t('profile.avatar')}>
+              {AVATAR_PRESETS.map((url, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.photoURL === url}
+                  aria-label={t('profile.preset', { n: i + 1 })}
+                  onClick={() => setForm({ ...form, photoURL: url })}
+                  className={cn('h-11 w-11 overflow-hidden rounded-full border-2 transition-colors', form.photoURL === url ? 'border-neon-red shadow-neon' : 'border-surface-border')}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt="" className="block h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+            <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={onPickImage} />
+            <Button type="button" variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <Camera size={15} aria-hidden />
+              {t('profile.choosePhoto')}
+            </Button>
           </div>
-        )}
-      </AnimatePresence>
 
-      {/* Edit Profile Modal */}
-      <AnimatePresence>
-        {isEditing && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-obsidian-black/80 backdrop-blur-sm" onClick={() => setIsEditing(false)} />
-            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} className="relative bg-obsidian-dark border border-surface-border p-6 rounded-3xl w-full max-w-sm shadow-glass max-h-[90vh] overflow-y-auto">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="font-heading font-bold text-xl text-white uppercase">Editar Perfil</h3>
-                <button onClick={() => setIsEditing(false)} className="text-text-dim hover:text-white"><X size={20} /></button>
-              </div>
-              <form onSubmit={handleSaveProfile} className="flex flex-col gap-4">
-                <div>
-                  <label className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1 block">Gamertag</label>
-                  <input required value={editForm.displayName} onChange={e => setEditForm({...editForm, displayName: e.target.value})} className="w-full h-12 px-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm" />
-                </div>
-                <div>
-                  <label className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1 block">Título</label>
-                  <input required value={editForm.title} onChange={e => setEditForm({...editForm, title: e.target.value})} className="w-full h-12 px-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm mb-2" />
-                  <div className="flex flex-wrap gap-2">
-                    {PRESET_TITLES.map(title => (
-                      <button key={title} type="button" onClick={() => setEditForm({...editForm, title})} className="px-2 py-1 bg-surface-glass border border-surface-border rounded text-[10px] font-mono text-text-dim hover:text-white hover:border-neon-red transition-colors">
-                        {title}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1 block">Biografía</label>
-                  <textarea rows={3} value={editForm.bio} onChange={e => setEditForm({...editForm, bio: e.target.value})} className="w-full p-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-body text-sm resize-none" />
-                </div>
-                <div>
-                  <label className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1 block">Avatar URL</label>
-                  <input placeholder="https://..." value={editForm.photoURL} onChange={e => setEditForm({...editForm, photoURL: e.target.value})} className="w-full h-12 px-4 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm mb-2" />
-                  <div className="flex flex-wrap gap-2">
-                    {AVATAR_PRESETS.map((url, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => setEditForm({...editForm, photoURL: url})}
-                        className={`w-10 h-10 rounded-full border-2 overflow-hidden transition-all ${editForm.photoURL === url ? 'border-neon-red shadow-neon' : 'border-surface-border hover:border-text-dim'}`}
-                      >
-                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={url} alt={`Preset ${i}`} className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                  </div>
+          <label className="flex flex-col gap-1.5">
+            <span className="eyebrow">{t('profile.gamertag')}</span>
+            <input
+              required
+              maxLength={16}
+              autoCapitalize="none"
+              autoCorrect="off"
+              value={form.displayName}
+              onChange={(e) => {
+                setNameError(false);
+                setForm({ ...form, displayName: e.target.value });
+              }}
+              aria-invalid={nameError}
+              className={cn('field', nameError && 'field-error')}
+            />
+            {nameError && (
+              <span role="alert" className="text-xs text-neon-red-bright">
+                {t('auth.validation.gamertagRule')}
+              </span>
+            )}
+          </label>
 
-                  <input
-                    type="file"
-                    accept="image/*"
-                    ref={fileInputRef}
-                    className="hidden"
-                    onChange={handleImageUpload}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="w-full mt-2 border border-surface-border flex items-center justify-center gap-2"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Camera size={16} />
-                    ELEGIR FOTO DE GALERÍA
-                  </Button>
-                </div>
-                <Button type="submit" variant="neon" className="w-full mt-4">Guardar Cambios</Button>
-              </form>
-            </motion.div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="profile-title" className="eyebrow">
+              {t('profile.titleLabel')}
+            </label>
+            <input id="profile-title" maxLength={30} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="field font-body" />
+            <div className="mt-1 flex flex-wrap gap-2">
+              {t('profile.titlePresets').split('|').map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setForm({ ...form, title: preset })}
+                  className={cn(
+                    'flex h-11 items-center rounded-full border px-3 font-mono text-[10px] font-bold uppercase tracking-wider transition-colors',
+                    form.title === preset ? 'border-neon-red bg-neon-red/15 text-neon-red-bright' : 'border-surface-border text-text-dim'
+                  )}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
           </div>
-        )}
-      </AnimatePresence>
 
-    </div>
+          <label className="flex flex-col gap-1.5">
+            <span className="eyebrow">{t('profile.bio')}</span>
+            <textarea rows={3} maxLength={160} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} className="field h-auto resize-none py-3 font-body" />
+          </label>
+
+          <Button type="submit" variant="neon" className="w-full" data-action="save-profile">
+            {t('profile.saveChanges')}
+          </Button>
+        </form>
+      </Modal>
+    </motion.div>
   );
 }

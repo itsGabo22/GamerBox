@@ -1,0 +1,63 @@
+rules_version = '2';
+
+// GamerBox — strict rules. Deploy with: firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+
+    // Private vault: library, profile extras. Only the owner can touch it.
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // Public gamertag card used by squad search. No email, no private data.
+    match /public_profiles/{uid} {
+      allow read: if signedIn();
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(
+             ['uid', 'gamertag', 'gamertagLower', 'title', 'level', 'platinums', 'totalHours', 'updatedAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.gamertag is string
+        && request.resource.data.gamertag.size() >= 3
+        && request.resource.data.gamertag.size() <= 16
+        && request.resource.data.gamertagLower == request.resource.data.gamertag.lower();
+      allow delete: if isOwner(uid);
+    }
+
+    // Community reviews.
+    match /community_posts/{postId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.content is string
+        && request.resource.data.content.size() > 0
+        && request.resource.data.content.size() <= 2000
+        && request.resource.data.gameTitle is string
+        && request.resource.data.gameTitle.size() <= 120
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.likes == 0
+        && request.resource.data.comments.size() == 0;
+
+      // Anyone signed in may only like/unlike (±1) or append one comment.
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'comments'])
+        && request.resource.data.likes is int
+        && request.resource.data.likes >= 0
+        && (request.resource.data.likes - resource.data.likes) in [-1, 0, 1]
+        && request.resource.data.comments.size() >= resource.data.comments.size()
+        && request.resource.data.comments.size() <= resource.data.comments.size() + 1;
+
+      allow delete: if signedIn() && resource.data.authorUid == request.auth.uid;
+    }
+
+    // Everything else is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

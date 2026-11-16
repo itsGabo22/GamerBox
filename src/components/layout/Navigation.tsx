@@ -2,52 +2,62 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Home, Compass, LayoutList, Users, User } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Home, Compass, LibraryBig, Users, User } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/lib/cn';
+import { spring } from '@/lib/motion';
 import { useTranslation } from '@/i18n/useTranslation';
 
-function cn(...inputs: (string | undefined | null | false)[]) {
-  return twMerge(clsx(inputs));
-}
+const ITEMS = [
+  { icon: Home, key: 'home', href: '/' },
+  { icon: Compass, key: 'discover', href: '/discover' },
+  { icon: LibraryBig, key: 'backlog', href: '/backlog' },
+  { icon: Users, key: 'community', href: '/community' },
+  { icon: User, key: 'profile', href: '/profile' },
+] as const;
 
 export const Navigation = () => {
-  const pathname = usePathname();
+  const pathname = (usePathname() || '/').replace(/\/+$/, '') || '/';
   const { t } = useTranslation();
 
-  const navItems = [
-    { icon: Home, label: t('nav.home'), href: '/' },
-    { icon: Compass, label: t('nav.discover'), href: '/discover' },
-    { icon: LayoutList, label: t('nav.backlog'), href: '/backlog' },
-    { icon: Users, label: t('nav.community'), href: '/community' },
-    { icon: User, label: t('nav.profile'), href: '/profile' },
-  ];
-
-  // Hide on game detail routes to provide immersive full-screen experience
-  if (pathname.startsWith('/game/')) return null;
+  // Game pages are immersive: no tab bar.
+  if (pathname.startsWith('/game')) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pb-6 pt-4 px-4 bg-gradient-to-t from-obsidian-black via-obsidian-black/80 to-transparent pointer-events-none">
-      <nav className="glass-panel rounded-full px-6 py-4 flex items-center justify-between w-full max-w-md pointer-events-auto shadow-glass border border-surface-border bg-obsidian-dark/90 backdrop-blur-xl">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href;
+    <div
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center bg-gradient-to-t from-obsidian-black via-obsidian-black/85 to-transparent px-3 pt-6"
+      style={{ paddingBottom: 'calc(var(--sab) + 10px)' }}
+    >
+      <nav
+        aria-label={t('nav.label')}
+        data-tour="nav"
+        className="pointer-events-auto flex h-16 w-full max-w-md items-stretch justify-between rounded-[22px] border border-surface-border bg-surface-solid/90 px-1.5 shadow-glass backdrop-blur-xl"
+      >
+        {ITEMS.map((item) => {
+          const active = pathname === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? 'page' : undefined}
+              data-nav={item.key}
               className={cn(
-                'flex flex-col items-center gap-1 transition-all duration-300 relative',
-                isActive ? 'text-neon-red-bright' : 'text-text-dim hover:text-white'
+                'relative flex min-w-[52px] flex-1 flex-col items-center justify-center gap-1 rounded-2xl transition-colors duration-150 active:scale-95',
+                active ? 'text-neon-red-bright' : 'text-text-dim hover:text-white'
               )}
-              aria-label={item.label}
             >
-              <div className="relative p-1">
-                <item.icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-                {isActive && (
-                  <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-neon-red-bright shadow-neon-bright" />
-                )}
-              </div>
+              {active && (
+                <motion.span
+                  layoutId="nav-active"
+                  transition={spring}
+                  className="absolute inset-x-1.5 inset-y-1.5 -z-10 rounded-2xl bg-neon-red/10"
+                />
+              )}
+              <item.icon size={21} strokeWidth={active ? 2.4 : 1.9} aria-hidden />
+              <span className={cn('font-mono text-[9px] font-bold uppercase tracking-wider', active ? 'opacity-100' : 'opacity-80')}>
+                {t(`nav.${item.key}`)}
+              </span>
             </Link>
           );
         })}

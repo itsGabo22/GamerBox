@@ -36,3 +36,23 @@ yarn-error.log*
 next-env.d.ts
 
 stitch_gamerbox_gaming_platform_ui_ux/
+
+# env (keep .env.example)
+.env
+.env.*
+!.env.example
+
+# APK output and signing material (never commit)
+/dist-apk/
+*.jks
+*.keystore
+keystore.properties
+android/keystore.properties
+
+# local agent tooling
+/.claude/
+/.agents/
+skills-lock.json
+
+# offline demo build
+/out-demo/

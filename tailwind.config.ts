@@ -1,39 +1,66 @@
 import type { Config } from "tailwindcss";
 
+// Tokens are stored as RGB channels so Tailwind opacity modifiers (`bg-neon-red/10`)
+// work in both themes. See globals.css.
+const token = (name: string) => `rgb(var(${name}) / <alpha-value>)`;
+
 const config: Config = {
   content: [
-    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
       colors: {
-        'obsidian-black': 'var(--bg-app)',
-        'obsidian-dark': 'var(--bg-panel)',
-        'neon-red': 'var(--neon-red)',
-        'neon-red-bright': 'var(--neon-red-bright)',
-        'mint-green': 'var(--mint-green)',
+        'obsidian-black': token('--c-bg'),
+        'obsidian-dark': token('--c-panel'),
+        'neon-red': token('--c-red'),
+        'neon-red-bright': token('--c-red-bright'),
+        'mint-green': token('--c-mint'),
+        'text-dim': token('--c-dim'),
+        white: token('--c-text'),
+        scrim: token('--c-scrim'),
+        'real-white': '#FFFFFF',
         'surface-glass': 'var(--bg-surface-glass)',
         'surface-glass-hover': 'var(--bg-surface-glass-hover)',
         'surface-border': 'var(--border-base)',
-        'text-dim': 'var(--text-secondary)',
-        'real-white': '#FFFFFF',
-        white: 'var(--tw-colors-white, #FFFFFF)',
+        'surface-solid': 'var(--bg-surface-solid)',
       },
       fontFamily: {
         heading: ['var(--font-space-grotesk)', 'sans-serif'],
         body: ['var(--font-inter)', 'sans-serif'],
         mono: ['var(--font-space-mono)', 'monospace'],
       },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-glass': 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%)',
-      },
       boxShadow: {
-        'neon': '0 0 15px rgba(229, 9, 20, 0.5)',
-        'neon-bright': '0 0 25px rgba(255, 0, 60, 0.7)',
-        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.5)',
+        neon: '0 0 15px rgb(var(--c-red) / 0.45)',
+        'neon-bright': '0 0 25px rgb(var(--c-red-bright) / 0.6)',
+        mint: '0 0 15px rgb(var(--c-mint) / 0.35)',
+        glass: 'var(--shadow-elevation)',
+      },
+      transitionTimingFunction: {
+        out: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      },
+      keyframes: {
+        shimmer: { '100%': { transform: 'translateX(100%)' } },
+        'pulse-ring': {
+          '0%, 100%': { opacity: '0.35', transform: 'scale(1)' },
+          '50%': { opacity: '1', transform: 'scale(1.03)' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-6px)' },
+        },
+        spinSlow: { to: { transform: 'rotate(360deg)' } },
+        scan: { '0%': { transform: 'translateY(-100%)' }, '100%': { transform: 'translateY(100%)' } },
+        blink: { '0%, 49%': { opacity: '1' }, '50%, 100%': { opacity: '0' } },
+      },
+      animation: {
+        shimmer: 'shimmer 1.4s infinite',
+        'pulse-ring': 'pulse-ring 1.8s ease-in-out infinite',
+        float: 'float 5s ease-in-out infinite',
+        'spin-slow': 'spinSlow 18s linear infinite',
+        scan: 'scan 3.5s linear infinite',
+        blink: 'blink 1s step-end infinite',
       },
     },
   },
