@@ -1,91 +1,92 @@
 'use client';
 
 import React from 'react';
-import { motion } from 'framer-motion';
-import { Star } from 'lucide-react';
-
 import Link from 'next/link';
-
-import { Game } from '@/store/useGameStore';
-
-import { SafeGameImage } from '@/components/ui/SafeGameImage';
+import { Clock, Heart } from 'lucide-react';
+import type { Game } from '@/store/useGameStore';
+import { GameCover } from '@/components/ui/SafeGameImage';
+import { useTranslation, statusLabel } from '@/i18n/useTranslation';
+import { cn } from '@/lib/cn';
 
 interface GameCardProps {
   game: Game;
+  /** When set, the card is a button (external / not-yet-owned games) instead of a link. */
+  onOpen?: () => void;
+  /** Replaces the status chip (e.g. a match score). */
+  chip?: React.ReactNode;
+  className?: string;
 }
 
-export const GameCard = ({ game }: GameCardProps) => {
-  const getStatusVariant = (status: string) => {
-    switch (status.toUpperCase()) {
-      case 'COMPLETED': return 'mint';
-      case 'PLAYING': return 'neon';
-      case 'LIVE': return 'live';
-      default: return 'default';
-    }
-  };
+const STATUS_TONE: Record<string, string> = {
+  COMPLETED: 'border-mint-green/50 bg-mint-green/15 text-mint-green',
+  PLAYING: 'border-neon-red/50 bg-neon-red/20 text-neon-red-bright',
+};
 
-  const statusVariant = getStatusVariant(game.status);
-  
-  // A helper function to apply variant specific classes to our custom badge
-  const badgeClasses = {
-    default: 'bg-surface-glass text-white border-surface-border',
-    neon: 'bg-neon-red/20 text-neon-red-bright border-neon-red/30',
-    mint: 'bg-mint-green/20 text-mint-green border-mint-green/30',
-    live: 'bg-neon-red/20 text-neon-red-bright border-neon-red/30',
-  };
+/** One card everywhere: fixed 2:3 frame, portrait art, same chip + title positions. */
+export const GameCard = ({ game, onOpen, chip, className }: GameCardProps) => {
+  const { t } = useTranslation();
+  const hours = game.hoursPlayed || 0;
+  const progress = game.status === 'COMPLETED' ? 100 : game.progress || 0;
 
-  return (
-    <Link href={`/game/view?id=${game.id}`} className="block w-full">
-      <motion.div
-        whileTap={{ scale: 0.98 }}
-        className="relative w-full aspect-[2/3] rounded-2xl overflow-hidden cursor-pointer group bg-obsidian-dark border border-surface-border transition-colors duration-300 md:hover:border-neon-red/50 md:hover:shadow-neon"
-      >
-      {/* Background Image Container */}
-      <div className="absolute inset-0 overflow-hidden">
-        <SafeGameImage
-          src={game.coverUrl}
-          alt={game.title}
-          genre={game.genre}
-          className="w-full h-full object-cover transition-transform duration-500 md:group-hover:scale-105"
-        />
-        {/* Persistent Gradient Overlay for text legibility */}
-        <div className="absolute inset-0 bg-gradient-to-t from-obsidian-black via-obsidian-black/40 to-transparent pointer-events-none" />
+  const body = (
+    <div
+      className={cn(
+        'group relative aspect-[2/3] w-full overflow-hidden rounded-2xl border border-surface-border bg-obsidian-dark transition-[transform,border-color] duration-150 ease-out active:scale-[0.97]',
+        className
+      )}
+    >
+      <GameCover src={game.coverUrl} title={game.title} genre={game.genre} className="absolute inset-0 h-full w-full" />
+      {/* Art is always dark-graded so the white title stays legible in both themes. */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/35 to-transparent" />
+
+      <div className="absolute inset-x-2.5 top-2.5 flex items-start justify-between gap-2">
+        {chip ?? (
+          <span
+            className={cn(
+              'rounded-md border px-1.5 py-1 font-mono text-[9px] font-bold uppercase leading-none tracking-wider backdrop-blur-md',
+              STATUS_TONE[game.status] || 'border-white/20 bg-black/50 text-real-white'
+            )}
+          >
+            {statusLabel(t, game.status)}
+          </span>
+        )}
+        {game.isFavorite && (
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-black/55 backdrop-blur-md">
+            <Heart size={12} className="fill-neon-red-bright text-neon-red-bright" aria-hidden />
+          </span>
+        )}
       </div>
 
-      {/* Top Section: Status & Rating */}
-      <div className="absolute top-3 left-3 right-3 flex justify-between items-start">
-        <span className={`inline-flex items-center px-2 py-1 rounded text-[10px] font-mono font-bold tracking-widest uppercase backdrop-blur-md border ${badgeClasses[statusVariant]}`}>
-          {game.status}
-        </span>
-        
-        <div className="flex items-center gap-1 bg-obsidian-black/60 backdrop-blur-md px-2 py-1 rounded-lg border border-surface-border">
-          <Star size={12} className="text-yellow-400 fill-yellow-400" />
-          <span className="font-mono text-[10px] font-bold text-white">{game.rating.toFixed(1)}</span>
-        </div>
-      </div>
-
-      {/* Bottom Section: Title & Progress */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 flex flex-col gap-2">
-        <h3 className="font-heading font-bold text-lg md:text-xl text-white leading-tight line-clamp-2">
-          {game.title}
-        </h3>
-        
-        {game.progress !== undefined && (
-          <div className="flex flex-col gap-1.5 w-full mt-1">
-            <div className="flex justify-between items-center text-[10px] font-mono uppercase text-text-dim">
-              <span>Progress</span>
-              <span>{game.progress}%</span>
-            </div>
-            <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-neon-red rounded-full" 
-                style={{ width: `${game.progress}%` }}
-              />
-            </div>
+      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1.5 p-3">
+        <h3 className="line-clamp-2 font-heading text-[15px] font-bold leading-tight text-real-white">{game.title}</h3>
+        {hours > 0 && (
+          <p className="flex items-center gap-1 font-mono text-[10px] font-bold text-real-white/70">
+            <Clock size={10} aria-hidden />
+            {t('common.hoursShort', { n: hours })}
+          </p>
+        )}
+        {progress > 0 && (
+          <div className="h-1 w-full overflow-hidden rounded-full bg-real-white/15" aria-hidden>
+            <div className={cn('h-full rounded-full', progress === 100 ? 'bg-mint-green' : 'bg-neon-red')} style={{ width: `${progress}%` }} />
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
+  );
+
+  if (onOpen) {
+    return (
+      <button type="button" onClick={onOpen} className="block w-full rounded-2xl text-left">
+        {body}
+      </button>
+    );
+  }
+
+  return (
+    <Link href={`/game/view?id=${encodeURIComponent(game.id)}`} className="block w-full rounded-2xl">
+      {body}
     </Link>
   );
 };
+
+export const GameCardSkeleton = () => <div className="skeleton aspect-[2/3] w-full" aria-hidden />;

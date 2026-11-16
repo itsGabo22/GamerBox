@@ -1,212 +1,187 @@
 'use client';
 
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useSettingsStore } from '@/store/useSettingsStore';
-import { useGameStore } from '@/store/useGameStore';
-import { useAuthStore } from '@/store/useAuthStore';
-import { useTranslation } from '@/i18n/useTranslation';
-import { X, Moon, Sun, Globe, LogOut, Trash2 } from 'lucide-react';
-import { GlassPanel } from '@/components/ui/GlassPanel';
+import React, { useEffect, useState } from 'react';
+import { ChevronRight, Globe, GraduationCap, Languages, LogOut, Moon, Palette, PlayCircle, Sun, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useSettingsStore } from '@/store/useSettingsStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useTutorialStore } from '@/store/useTutorialStore';
+import { useTranslation } from '@/i18n/useTranslation';
+import type { Currency } from '@/i18n/format';
+import { Modal } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
+import { Segmented } from '@/components/ui/Segmented';
+import { GBMark } from '@/components/brand/CrystalMark';
+import { DeleteAccountDialog } from '@/components/settings/DeleteAccountDialog';
+import { cn } from '@/lib/cn';
+
+export const APP_VERSION = '1.0.0';
+const CURRENCIES: Currency[] = ['COP', 'USD', 'EUR', 'MXN'];
+
+const SectionLabel = ({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) => (
+  <h3 className="eyebrow mb-3 flex items-center gap-2">
+    <span className="text-neon-red-bright">{icon}</span>
+    {children}
+  </h3>
+);
 
 export const SettingsModal = () => {
-  const { isSettingsOpen, closeSettings, theme, setTheme, language, setLanguage } = useSettingsStore();
-  const { logout, deleteAccount } = useAuthStore();
-  const { clearLibrary } = useGameStore();
+  const { isSettingsOpen, closeSettings, theme, setTheme, language, setLanguage, currency, setCurrency, introEnabled, setIntroEnabled } =
+    useSettingsStore();
+  const logout = useAuthStore((s) => s.logout);
+  const startTutorial = useTutorialStore((s) => s.start);
   const { t } = useTranslation();
   const router = useRouter();
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const [isDeleting, setIsDeleting] = React.useState(false);
+  useEffect(() => {
+    if (!isSettingsOpen) setConfirmDelete(false);
+  }, [isSettingsOpen]);
 
-  if (!isSettingsOpen) return null;
+  const replayTutorial = () => {
+    closeSettings();
+    router.push('/');
+    setTimeout(startTutorial, 350);
+  };
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center">
-        {/* Backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={closeSettings}
-          className="absolute inset-0 bg-obsidian-black/80 backdrop-blur-sm"
-        />
+    <>
+      <Modal open={isSettingsOpen && !confirmDelete} onClose={closeSettings} title={t('settings.title')} variant="sheet">
+        <div className="flex flex-col gap-7">
+          <section>
+            <SectionLabel icon={<Languages size={14} />}>{t('settings.language')}</SectionLabel>
+            <Segmented
+              name="language"
+              label={t('settings.language')}
+              value={language}
+              onChange={setLanguage}
+              options={[
+                { id: 'es', label: 'Español' },
+                { id: 'en', label: 'English' },
+              ]}
+            />
+          </section>
 
-        {/* Modal Container */}
-        <motion.div
-          initial={{ y: '100%' }}
-          animate={{ y: 0 }}
-          exit={{ y: '100%' }}
-          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="relative w-full max-w-md bg-obsidian-dark border-t border-surface-border rounded-t-3xl sm:rounded-2xl sm:border flex flex-col max-h-[85vh] overflow-y-auto overflow-x-hidden shadow-[0_-20px_50px_rgba(0,0,0,0.5)]"
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-2 sticky top-0 bg-obsidian-dark/90 backdrop-blur-md z-10 p-6">
-            <h2 className="font-heading font-bold text-xl text-white tracking-wide uppercase">
-              {t('settings.title')}
-            </h2>
-            <button
-              onClick={closeSettings}
-              className="w-8 h-8 rounded-full bg-surface-glass flex items-center justify-center text-text-dim hover:text-white hover:bg-neon-red/20 transition-colors"
-              aria-label={t('settings.close')}
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-6 p-6 pt-0">
-            {/* Language Selector */}
-            <div className="flex flex-col gap-2 mt-2">
-              <span className="text-xs font-mono uppercase tracking-widest text-zinc-400">
-                {language === 'es' ? 'IDIOMA DEL SISTEMA' : 'SYSTEM LANGUAGE'}
-              </span>
-              <div className="flex bg-surface-glass p-1 rounded-xl border border-surface-border relative">
-                <button
-                  onClick={() => setLanguage('es')}
-                  className={`flex-1 py-3 font-heading font-bold text-sm z-10 transition-colors ${language === 'es' ? 'text-white' : 'text-text-dim'}`}
-                >
-                  ESPAÑOL
-                </button>
-                <button
-                  onClick={() => setLanguage('en')}
-                  className={`flex-1 py-3 font-heading font-bold text-sm z-10 transition-colors ${language === 'en' ? 'text-white' : 'text-text-dim'}`}
-                >
-                  ENGLISH
-                </button>
-
-                {/* Active Pill Indicator */}
-                <motion.div
-                  layout
-                  initial={false}
-                  animate={{ x: language === 'en' ? '100%' : '0%' }}
-                  transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
-                  className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-obsidian-black rounded-lg shadow-glass border border-white/5"
-                />
-              </div>
-            </div>
-
-            {/* Currency Selector */}
-            <section>
-              <div className="flex items-center gap-2 mb-4">
-                <Globe size={16} className="text-neon-red" />
-                <h3 className="font-mono text-xs font-bold tracking-widest text-text-dim uppercase">
-                  {t('settings.currency')}
-                </h3>
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                {(['COP', 'USD', 'EUR', 'MXN'] as const).map(cur => (
+          <section>
+            <SectionLabel icon={<Palette size={14} />}>{t('settings.theme')}</SectionLabel>
+            <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label={t('settings.theme')}>
+              {(['dark', 'light'] as const).map((option) => {
+                const active = theme === option;
+                const Icon = option === 'dark' ? Moon : Sun;
+                return (
                   <button
-                    key={cur}
-                    onClick={() => useSettingsStore.getState().setCurrency(cur)}
-                    className={`py-3 rounded-xl border font-heading font-bold text-sm transition-colors ${useSettingsStore.getState().currency === cur ? 'bg-neon-red/10 border-neon-red shadow-neon text-white' : 'bg-surface-glass border-surface-border text-text-dim hover:text-white'}`}
+                    key={option}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    data-theme-option={option}
+                    onClick={() => setTheme(option)}
+                    className={cn(
+                      'flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-2xl border font-heading text-sm font-bold uppercase tracking-wide transition-colors duration-150 active:scale-[0.98]',
+                      active ? 'border-neon-red bg-neon-red/10 text-white shadow-neon' : 'border-surface-border bg-white/5 text-text-dim hover:text-white'
+                    )}
                   >
-                    {cur}
+                    <Icon size={20} className={active ? 'text-neon-red-bright' : undefined} aria-hidden />
+                    {t(`settings.${option}`)}
                   </button>
-                ))}
-              </div>
-            </section>
+                );
+              })}
+            </div>
+          </section>
 
-            {/* Theme Selector */}
-            <section>
-              <div className="flex items-center gap-2 mb-4">
-                <Sun size={16} className="text-neon-red" />
-                <h3 className="font-mono text-xs font-bold tracking-widest text-text-dim uppercase">
-                  {t('settings.theme')}
-                </h3>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setTheme('dark')}
-                  className={`relative flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border transition-all ${
-                    theme === 'dark'
-                      ? 'bg-neon-red/10 border-neon-red shadow-neon text-neon-red-bright'
-                      : 'bg-surface-glass border-surface-border text-text-dim hover:text-white'
-                  }`}
-                >
-                  <Moon size={24} />
-                  <span className="font-heading font-bold text-sm text-white">
-                    {t('settings.dark')}
-                  </span>
-                </button>
-                <button
-                  onClick={() => setTheme('light')}
-                  className={`relative flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border transition-all ${
-                    theme === 'light'
-                      ? 'bg-neon-red/10 border-neon-red shadow-neon text-neon-red-bright'
-                      : 'bg-surface-glass border-surface-border text-text-dim hover:text-white'
-                  }`}
-                >
-                  <Sun size={24} />
-                  <span className="font-heading font-bold text-sm text-white">
-                    {t('settings.light')}
-                  </span>
-                </button>
-              </div>
-            </section>
+          <section>
+            <SectionLabel icon={<Globe size={14} />}>{t('settings.currency')}</SectionLabel>
+            <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label={t('settings.currency')}>
+              {CURRENCIES.map((option) => {
+                const active = currency === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setCurrency(option)}
+                    className={cn(
+                      'h-11 rounded-xl border font-mono text-xs font-bold tracking-wider transition-colors duration-150 active:scale-[0.97]',
+                      active ? 'border-neon-red bg-neon-red/10 text-white' : 'border-surface-border bg-white/5 text-text-dim hover:text-white'
+                    )}
+                  >
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
 
-            {/* System Info & Logout */}
-            <section className="mt-4">
-              <GlassPanel className="p-5 border border-neon-red/20 bg-neon-red/5">
-                <div className="flex flex-col items-center text-center gap-2 mb-6">
-                  <div className="w-12 h-12 bg-obsidian-black rounded-xl border border-surface-border flex items-center justify-center shadow-glass mb-2">
-                    <span className="font-heading font-black text-xl text-neon-red-bright">GB</span>
-                  </div>
-                  <p className="font-mono text-[10px] font-bold text-white tracking-widest uppercase">
-                    GAMERBOX V1.0.0
-                  </p>
-                </div>
+          <section className="flex flex-col gap-2">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={introEnabled}
+              onClick={() => setIntroEnabled(!introEnabled)}
+              className="flex min-h-[60px] items-center gap-3 rounded-2xl border border-surface-border bg-white/5 px-4 py-3 text-left"
+            >
+              <PlayCircle size={20} className="shrink-0 text-neon-red-bright" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="block font-heading text-sm font-bold text-white">{t('settings.intro')}</span>
+                <span className="block text-xs text-text-dim">{t('settings.introHint')}</span>
+              </span>
+              <span
+                className={cn('relative h-7 w-12 shrink-0 rounded-full border transition-colors duration-150', introEnabled ? 'border-neon-red bg-neon-red' : 'border-surface-border bg-white/10')}
+                aria-hidden
+              >
+                <span className={cn('absolute top-0.5 h-[22px] w-[22px] rounded-full bg-real-white shadow transition-transform duration-150', introEnabled ? 'translate-x-[22px]' : 'translate-x-0.5')} />
+              </span>
+            </button>
 
-                {isDeleting ? (
-                  <div className="flex flex-col gap-3">
-                    <p className="font-mono text-[10px] text-neon-red-bright uppercase text-center mb-2">
-                      {t('settings.deleteConfirm')}
-                    </p>
-                    <button
-                      onClick={async () => {
-                        await deleteAccount();
-                        clearLibrary();
-                        closeSettings();
-                        router.replace('/login');
-                      }}
-                      className="w-full flex items-center justify-center gap-2 h-12 bg-neon-red border border-neon-red-bright rounded-xl text-white font-mono text-xs font-bold tracking-widest uppercase transition-all shadow-neon"
-                    >
-                      {t('settings.deleteYes')}
-                    </button>
-                    <button
-                      onClick={() => setIsDeleting(false)}
-                      className="w-full flex items-center justify-center gap-2 h-12 bg-obsidian-black border border-surface-border rounded-xl text-text-dim font-mono text-xs font-bold tracking-widest uppercase transition-all hover:text-white"
-                    >
-                      {t('settings.deleteCancel')}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    <button
-                      onClick={() => {
-                        closeSettings();
-                        logout();
-                      }}
-                      className="w-full flex items-center justify-center gap-2 h-12 bg-obsidian-black border border-surface-border rounded-xl text-text-dim font-mono text-xs font-bold tracking-widest uppercase transition-all hover:text-white"
-                    >
-                      <LogOut size={16} />
-                      {t('settings.logout')}
-                    </button>
+            <button
+              type="button"
+              onClick={replayTutorial}
+              data-action="replay-tutorial"
+              className="flex min-h-[60px] items-center gap-3 rounded-2xl border border-surface-border bg-white/5 px-4 py-3 text-left transition-colors hover:bg-white/10"
+            >
+              <GraduationCap size={20} className="shrink-0 text-mint-green" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="block font-heading text-sm font-bold text-white">{t('settings.tutorial')}</span>
+                <span className="block text-xs text-text-dim">{t('settings.tutorialHint')}</span>
+              </span>
+              <ChevronRight size={18} className="shrink-0 text-text-dim" aria-hidden />
+            </button>
+          </section>
 
-                    <button
-                      onClick={() => setIsDeleting(true)}
-                      className="w-full flex items-center justify-center gap-2 h-12 bg-obsidian-black border border-neon-red/30 rounded-xl text-neon-red-bright font-mono text-xs font-bold tracking-widest uppercase transition-all hover:bg-neon-red/10 shadow-[0_0_15px_rgba(255,42,85,0.1)] active:scale-95"
-                    >
-                      <Trash2 size={16} />
-                      {t('settings.delete')}
-                    </button>
-                  </div>
-                )}
-              </GlassPanel>
-            </section>
-          </div>
-        </motion.div>
-      </div>
-    </AnimatePresence>
+          <section>
+            <h3 className="eyebrow mb-3">{t('settings.account')}</h3>
+            <div className="flex flex-col gap-3">
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  closeSettings();
+                  logout();
+                }}
+              >
+                <LogOut size={16} aria-hidden />
+                {t('settings.logout')}
+              </Button>
+              <Button variant="danger" className="w-full" onClick={() => setConfirmDelete(true)}>
+                <Trash2 size={16} aria-hidden />
+                {t('settings.delete')}
+              </Button>
+            </div>
+          </section>
+
+          <footer className="flex items-center justify-center gap-2.5 pb-2 pt-1">
+            <GBMark className="h-6 w-6 rounded-md text-[10px]" />
+            <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-text-dim">{t('settings.version', { v: APP_VERSION })}</span>
+          </footer>
+        </div>
+      </Modal>
+
+      <DeleteAccountDialog
+        open={isSettingsOpen && confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onDeleted={closeSettings}
+      />
+    </>
   );
 };

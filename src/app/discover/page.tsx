@@ -1,635 +1,548 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { Search as SearchIcon, TrendingUp, Swords, Gamepad2, Sparkles, Navigation as NavigationIcon, Flame } from 'lucide-react';
-import { GameCard } from '@/components/dashboard/GameCard';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useGameStore } from '@/store/useGameStore';
-import { getOracleRecommendations, AiRecommendation, analyzeSteamDeals } from '@/services/aiService';
-import { fetchSteamDeals, searchGlobalGames, ApiGameDeal, ExternalGameResult } from '@/services/gameApiService';
-import { Button } from '@/components/ui/Button';
-import { useTranslation } from '@/i18n/useTranslation';
-import { useSettingsStore, formatPrice } from '@/store/useSettingsStore';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Check, Flame, Plus, RefreshCw, Search as SearchIcon, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { GameCard, GameCardSkeleton } from '@/components/dashboard/GameCard';
+import { GameCover } from '@/components/ui/SafeGameImage';
+import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { OracleMark } from '@/components/ui/OracleMark';
+import { useGameStore, type GameStatus } from '@/store/useGameStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
+import { toast } from '@/store/useToastStore';
+import { useTranslation, genreLabel, statusLabel } from '@/i18n/useTranslation';
+import { formatPrice } from '@/i18n/format';
+import { analyzeSteamDeals, getOracleRecommendations, type AiRecommendation } from '@/services/aiService';
+import { fetchSteamDeals, searchGlobalGames, type ApiGameDeal, type ExternalGameResult, type Sourced } from '@/services/gameApiService';
+import { openExternalGame } from '@/lib/openGame';
+import { fadeUp, stagger, tBase } from '@/lib/motion';
+import { cn } from '@/lib/cn';
 
-const GENRES = [
-  { id: 'all', label: 'TODOS', icon: TrendingUp },
-  { id: 'rpg', label: 'RPG', icon: Swords },
-  { id: 'action', label: 'ACTION', icon: Gamepad2 },
-  { id: 'strategy', label: 'STRATEGY', icon: NavigationIcon },
-  { id: 'racing', label: 'RACING', icon: Sparkles },
-];
+const PLATFORMS = ['PC', 'PS5', 'Xbox', 'Switch'];
+const GENRES = ['RPG', 'ACTION', 'SHOOTER', 'RACING', 'STRATEGY', 'HORROR', 'SPORTS', 'ADVENTURE'];
+const STATUSES: GameStatus[] = ['PENDING', 'PLAYING', 'COMPLETED'];
+
+const Chip = ({ active, onClick, children, tone = 'red' }: { active: boolean; onClick: () => void; children: React.ReactNode; tone?: 'red' | 'mint' }) => (
+  <button
+    type="button"
+    role="radio"
+    aria-checked={active}
+    onClick={onClick}
+    className={cn(
+      'flex h-11 shrink-0 items-center rounded-full border px-4 font-mono text-[11px] font-bold uppercase tracking-wider transition-colors duration-150 active:scale-95',
+      active
+        ? tone === 'red'
+          ? 'border-neon-red bg-neon-red/15 text-neon-red-bright'
+          : 'border-mint-green/60 bg-mint-green/15 text-mint-green'
+        : 'border-surface-border bg-surface-glass text-text-dim hover:text-white'
+    )}
+  >
+    {children}
+  </button>
+);
 
 export default function DiscoverPage() {
-  const games = useGameStore(state => state.games);
-  const addGame = useGameStore(state => state.addGame);
-  const setSelectedGame = useGameStore(state => state.setSelectedGame);
+  const games = useGameStore((s) => s.games);
+  const addGame = useGameStore((s) => s.addGame);
   const { t, language } = useTranslation();
-  const { currency } = useSettingsStore();
+  const currency = useSettingsStore((s) => s.currency);
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeGenre, setActiveGenre] = useState('all');
 
-  const [isOracleLoading, setIsOracleLoading] = useState(false);
-  const [oracleResults, setOracleResults] = useState<AiRecommendation[] | null>(null);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<ExternalGameResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [genre, setGenre] = useState('ALL');
 
-  const [deals, setDeals] = useState<ApiGameDeal[]>([]);
-  const [isDealsLoading, setIsDealsLoading] = useState(true);
-  const [dealAnalysis, setDealAnalysis] = useState<{ recommendedDealId: string; analysis: string } | null>(null);
-  const [isDealAnalysisLoading, setIsDealAnalysisLoading] = useState(false);
+  const [oracleLoading, setOracleLoading] = useState(false);
+  const [oracle, setOracle] = useState<AiRecommendation[] | null>(null);
 
-  const [searchResults, setSearchResults] = useState<ExternalGameResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  const [deals, setDeals] = useState<Sourced<ApiGameDeal> | null>(null);
+  const [advice, setAdvice] = useState<{ recommendedDealId: string; analysis: string } | null>(null);
+  const [adviceLoading, setAdviceLoading] = useState(false);
 
-  // Custom Game Modal State
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newGame, setNewGame] = useState({ title: '', platform: 'PC', genre: 'RPG', status: 'PENDING' });
+  const [addOpen, setAddOpen] = useState(false);
+  const [addQuery, setAddQuery] = useState('');
+  const [addResults, setAddResults] = useState<ExternalGameResult[]>([]);
+  const [addSearching, setAddSearching] = useState(false);
+  const [picked, setPicked] = useState<ExternalGameResult | null>(null);
+  const [draft, setDraft] = useState<{ platform: string; genre: string; status: GameStatus }>({ platform: 'PC', genre: 'RPG', status: 'PENDING' });
 
   useEffect(() => {
-    fetchSteamDeals().then(data => {
-      setDeals(data);
-      setIsDealsLoading(false);
-    });
+    let alive = true;
+    fetchSteamDeals().then((d) => alive && setDeals(d));
+    return () => {
+      alive = false;
+    };
   }, []);
 
+  // Debounced global search; stale responses are ignored.
   useEffect(() => {
-    if (searchQuery.trim().length > 2) {
-      setIsSearching(true);
-      const delay = setTimeout(() => {
-        searchGlobalGames(searchQuery).then(res => {
-          setSearchResults(res);
-          setIsSearching(false);
-        });
-      }, 500);
-      return () => clearTimeout(delay);
-    } else {
-      setSearchResults([]);
-      setIsSearching(false);
+    const q = query.trim();
+    if (q.length < 3) {
+      setResults([]);
+      setSearching(false);
+      return;
     }
-  }, [searchQuery]);
-
-  const handleOracleClick = async () => {
-    setIsOracleLoading(true);
-    try {
-      const favorites = games.filter(g => g.isFavorite).map(g => g.title);
-      const completed = games.filter(g => g.status === 'COMPLETED').map(g => g.title);
-
-      const results = await getOracleRecommendations(favorites, completed, language);
-      setOracleResults(results);
-    } finally {
-      setIsOracleLoading(false);
-    }
-  };
-
-  const handleDealAnalysis = async () => {
-    setIsDealAnalysisLoading(true);
-    try {
-      const favorites = games.filter(g => g.isFavorite).map(g => g.title);
-      const res = await analyzeSteamDeals(deals, favorites, language);
-      setDealAnalysis(res);
-    } finally {
-      setIsDealAnalysisLoading(false);
-    }
-  };
-
-  const handleOpenGlobalGame = (gameInfo: ExternalGameResult) => {
-    const tempGame = {
-      id: gameInfo.gameID,
-      title: gameInfo.title,
-      coverUrl: gameInfo.cover,
-      genre: gameInfo.genre,
-      platform: gameInfo.platform,
-      status: 'PENDING',
-      isFavorite: false,
-      timePlayed: '0 hrs',
-      rating: 0
+    let alive = true;
+    setSearching(true);
+    const timer = setTimeout(() => {
+      searchGlobalGames(q).then((found) => {
+        if (!alive) return;
+        setResults(found);
+        setSearching(false);
+      });
+    }, 400);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
     };
-    setSelectedGame(tempGame);
-    sessionStorage.setItem('gamerbox_active_game', JSON.stringify(tempGame));
-    router.push(`/game/view?id=${gameInfo.gameID}&external=true`);
-  };
-  const handleAddToBacklog = (rec: AiRecommendation) => {
-    addGame({
-      id: rec.id,
-      title: rec.title,
-      coverUrl: rec.coverUrl,
-      genre: rec.genre,
-      platform: rec.platform,
-      status: 'PENDING',
-      isFavorite: false,
-      timePlayed: '0 hrs',
-      rating: 0
-    });
-    setOracleResults(prev => prev ? prev.filter(r => r.id !== rec.id) : null);
-  };
-
-  const [addSearchQuery, setAddSearchQuery] = useState('');
-  const [addSearchResults, setAddSearchResults] = useState<ExternalGameResult[]>([]);
-  const [isAddSearching, setIsAddSearching] = useState(false);
-  const [selectedAddGame, setSelectedAddGame] = useState<ExternalGameResult | null>(null);
+  }, [query]);
 
   useEffect(() => {
-    if (addSearchQuery.trim().length > 2 && !selectedAddGame) {
-      setIsAddSearching(true);
-      const delay = setTimeout(() => {
-        searchGlobalGames(addSearchQuery).then(res => {
-          setAddSearchResults(res.slice(0, 6));
-          setIsAddSearching(false);
-        });
-      }, 300);
-      return () => clearTimeout(delay);
-    } else {
-      setAddSearchResults([]);
-      setIsAddSearching(false);
+    const q = addQuery.trim();
+    if (q.length < 3 || picked) {
+      setAddResults([]);
+      setAddSearching(false);
+      return;
     }
-  }, [addSearchQuery, selectedAddGame]);
+    let alive = true;
+    setAddSearching(true);
+    const timer = setTimeout(() => {
+      searchGlobalGames(q).then((found) => {
+        if (!alive) return;
+        setAddResults(found.slice(0, 5));
+        setAddSearching(false);
+      });
+    }, 300);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [addQuery, picked]);
 
-  const submitNewGame = async (e: React.FormEvent) => {
+  const askOracle = async () => {
+    setOracleLoading(true);
+    try {
+      setOracle(await getOracleRecommendations(games, language));
+    } finally {
+      setOracleLoading(false);
+    }
+  };
+
+  const askAdvisor = async () => {
+    if (!deals) return;
+    setAdviceLoading(true);
+    try {
+      setAdvice(await analyzeSteamDeals(deals.items, games.filter((g) => g.isFavorite).map((g) => g.title), language));
+    } finally {
+      setAdviceLoading(false);
+    }
+  };
+
+  const register = (game: { id: string; title: string; coverUrl: string; genre: string; platform: string; status?: GameStatus }) => {
+    const ok = addGame({ ...game, status: game.status || 'PENDING', isFavorite: false, timePlayed: '0 h', hoursPlayed: 0, rating: 0 });
+    toast(t(ok ? 'discover.added' : 'discover.duplicate', { title: game.title }), ok ? 'success' : 'error');
+    return ok;
+  };
+
+  const closeAdd = () => {
+    setAddOpen(false);
+    setAddQuery('');
+    setPicked(null);
+    setAddResults([]);
+    setDraft({ platform: 'PC', genre: 'RPG', status: 'PENDING' });
+  };
+
+  const submitNewGame = (e: React.FormEvent) => {
     e.preventDefault();
-
-    let gameToSave = {
-      title: newGame.title,
-      coverUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1000',
-      genre: newGame.genre,
-      platform: newGame.platform
-    };
-
-    if (selectedAddGame) {
-      gameToSave = {
-        title: selectedAddGame.title,
-        coverUrl: selectedAddGame.cover,
-        genre: selectedAddGame.genre,
-        platform: selectedAddGame.platform
-      };
-    } else if (addSearchQuery.trim().length > 2 && addSearchResults.length > 0) {
-      // User typed something valid but didn't tap autocomplete
-      const topMatch = addSearchResults[0];
-      gameToSave = {
-        title: topMatch.title,
-        coverUrl: topMatch.cover,
-        genre: topMatch.genre,
-        platform: topMatch.platform
-      };
-    } else if (addSearchQuery.trim().length > 0) {
-      gameToSave.title = addSearchQuery;
-    }
-
-    addGame({
-      id: `custom-${Date.now()}`,
-      ...gameToSave,
-      status: newGame.status,
-      isFavorite: false,
-      timePlayed: '0 hrs',
-      rating: 0
+    const title = (picked?.title || addQuery).trim();
+    if (!title) return;
+    const ok = register({
+      id: picked ? picked.gameID : `custom-${Date.now()}`,
+      title,
+      coverUrl: picked?.cover || '',
+      genre: draft.genre,
+      platform: draft.platform,
+      status: draft.status,
     });
-    setShowAddModal(false);
-    setNewGame({ title: '', platform: 'PC', genre: 'RPG', status: 'PENDING' });
-    setAddSearchQuery('');
-    setSelectedAddGame(null);
+    if (ok) closeAdd();
   };
 
-  // Filter games based on search and selected genre
-  const filteredGames = useMemo(() => {
-    let result = games;
-    if (activeGenre !== 'all') {
-      result = result.filter(game => game.genre?.toLowerCase() === activeGenre);
-    }
-    return result;
-  }, [activeGenre, games]);
-
-  const recommendations = filteredGames.slice(0, 6);
+  const owned = useMemo(() => new Set(games.map((g) => g.title.trim().toLowerCase())), [games]);
+  const libraryGenres = useMemo(() => ['ALL', ...Array.from(new Set(games.map((g) => (g.genre || 'UNKNOWN').toUpperCase())))], [games]);
+  const library = genre === 'ALL' ? games : games.filter((g) => (g.genre || 'UNKNOWN').toUpperCase() === genre);
+  const isSearch = query.trim().length >= 3;
 
   return (
-    <div className="flex flex-col w-full px-4 pt-6 md:px-8 pb-12">
-      {/* Header */}
-      <header className="mb-6">
-        <h1 className="text-3xl font-heading font-bold uppercase tracking-tight text-white mb-1">
-          {t('discover.title')}
-        </h1>
-        <p className="font-body text-sm text-text-dim">
-          {t('discover.subtitle')}
-        </p>
-      </header>
+    <motion.div variants={stagger} initial="hidden" animate="show" className="pb-nav flex w-full flex-col gap-7 px-4 pt-6">
+      <motion.header variants={fadeUp}>
+        <h1 className="font-heading text-3xl font-bold uppercase tracking-tight text-white">{t('discover.title')}</h1>
+        <p className="mt-1 text-sm text-text-dim">{t('discover.subtitle')}</p>
+      </motion.header>
 
-      {/* Search Input */}
-      <div className="relative w-full mb-6 z-30">
-        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-text-dim">
-          <SearchIcon size={20} />
-        </div>
+      <motion.div variants={fadeUp} className="relative -mt-2">
+        <SearchIcon size={19} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-dim" aria-hidden />
         <input
           type="search"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
           placeholder={t('common.searchPlaceholder')}
-          className="w-full h-14 pl-12 pr-4 bg-surface-glass backdrop-blur-xl border border-surface-border rounded-2xl text-white placeholder:text-text-dim focus:outline-none focus:border-neon-red focus:ring-1 focus:ring-neon-red transition-all shadow-glass"
+          aria-label={t('common.searchPlaceholder')}
+          className="field h-14 rounded-2xl bg-surface-glass pl-12 pr-12 font-body text-base"
         />
-      </div>
+        {query && (
+          <button type="button" onClick={() => setQuery('')} aria-label={t('common.close')} className="absolute right-0 top-0 flex h-14 w-12 items-center justify-center text-text-dim">
+            <X size={17} />
+          </button>
+        )}
+      </motion.div>
 
-      {/* GamerBox AI Oracle Section */}
-      <section className="mb-8 relative z-20">
-        <AnimatePresence mode="wait">
-          {!oracleResults && !isOracleLoading && (
-            <motion.div
-              key="oracle-btn"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-            >
-              <Button
-                variant="neon"
-                className="w-full h-14 font-heading font-bold text-lg tracking-wide uppercase shadow-neon flex items-center justify-center gap-2"
-                onClick={handleOracleClick}
-              >
-                <Sparkles size={20} />
-                {t('discover.analyzeProfile')}
-              </Button>
-            </motion.div>
-          )}
-
-          {isOracleLoading && (
-            <motion.div
-              key="oracle-loading"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full h-24 bg-surface-glass border border-surface-border rounded-2xl flex flex-col items-center justify-center gap-3 overflow-hidden relative"
-            >
-              <motion.div
-                animate={{ scale: [1, 1.05, 1], opacity: [0.5, 1, 0.5] }}
-                transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                className="absolute inset-0 bg-neon-red/10"
-              />
-              <Sparkles size={24} className="text-neon-red animate-pulse relative z-10" />
-              <p className="font-mono text-[10px] uppercase tracking-widest text-text-dim relative z-10">
-                {t('discover.analyzing')}
-              </p>
-            </motion.div>
-          )}
-
-          {oracleResults && !isOracleLoading && (
-            <motion.div
-              key="oracle-results"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="w-full flex flex-col gap-4"
-            >
-              <div className="flex items-center justify-between px-2">
-                <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-mint-green flex items-center gap-2">
-                  <Sparkles size={12} />
-                  GamerBox AI Oracle
-                </h2>
-                <div className="flex gap-4">
-                  <button
-                    onClick={handleOracleClick}
-                    className="font-mono text-[10px] text-text-dim uppercase underline hover:text-white"
-                  >
-                    🔄 Recalibrar
-                  </button>
-                  <button
-                    onClick={() => setOracleResults(null)}
-                    className="font-mono text-[10px] text-text-dim uppercase underline hover:text-neon-red"
-                  >
-                    {t('discover.reset')}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:-mx-8 md:px-8">
-                {oracleResults.map((game) => (
-                  <div key={game.id} className="snap-start shrink-0 w-[240px] md:w-[280px] relative flex flex-col gap-2">
-                    <GameCard game={{
-                      id: game.id,
-                      title: game.title,
-                      coverUrl: game.coverUrl,
-                      status: 'AI REC',
-                      rating: 0,
-                      isFavorite: false,
-                      timePlayed: '0 hrs',
-                      platform: game.platform,
-                      genre: game.genre,
-                    }} />
-                    <div className="absolute -top-3 -right-2 z-10">
-                      <div className="bg-obsidian-black px-3 py-1.5 rounded-lg border-2 border-mint-green shadow-[0_0_15px_rgba(94,230,168,0.4)]">
-                        <p className="font-mono text-xs font-bold text-mint-green tracking-widest uppercase whitespace-nowrap drop-shadow-md">
-                          {game.matchScore}% AI MATCH
-                        </p>
-                      </div>
-                    </div>
-                    <div className="bg-surface-glass border border-surface-border rounded-xl p-3 mt-1 shadow-glass">
-                      <p className="font-body text-xs text-white/80 italic leading-relaxed">&quot;{game.reason}&quot;</p>
-                    </div>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="w-full mt-1 border-mint-green/30 text-mint-green hover:bg-mint-green/10"
-                      onClick={() => handleAddToBacklog(game)}
-                    >
-                      + Añadir al Backlog
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </section>
-
-      {/* Section 1: OFERTAS STEAM (Live) */}
-      {searchQuery === '' && activeGenre === 'all' && (
-        <section className="mb-8">
-          <div className="flex items-center justify-between mb-4 px-2">
-            <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-text-dim flex items-center gap-2">
-              <Flame size={14} className="text-neon-red-bright" />
-              Ofertas de Steam en Vivo
-            </h2>
-            <button
-              onClick={handleDealAnalysis}
-              disabled={isDealsLoading || isDealAnalysisLoading || deals.length === 0}
-              className="font-mono text-[10px] text-mint-green uppercase underline hover:text-white transition-colors"
-            >
-              {isDealAnalysisLoading ? 'Analizando...' : '✨ Analizar Ofertas con IA'}
-            </button>
-          </div>
-
-          {dealAnalysis && (
-            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 px-4 py-3 bg-mint-green/10 border border-mint-green/30 rounded-xl">
-              <p className="font-mono text-[10px] text-mint-green font-bold uppercase mb-1">GamerBox Advisor</p>
-              <p className="font-body text-xs text-white leading-relaxed">{dealAnalysis.analysis}</p>
-            </motion.div>
-          )}
-
-          <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:-mx-8 md:px-8">
-            {isDealsLoading ? (
-              <div className="text-text-dim font-mono text-xs uppercase px-2 py-8">Sincronizando ofertas...</div>
-            ) : (
-              deals.map(deal => {
-                const isRecommended = dealAnalysis?.recommendedDealId === deal.dealID;
-                return (
-                  <div
-                    key={deal.dealID}
-                    onClick={() => {
-                      const tempGame = {
-                        id: deal.gameID,
-                        title: deal.title,
-                        coverUrl: deal.thumb,
-                        genre: 'PC',
-                        platform: 'PC',
-                        status: 'PENDING',
-                        isFavorite: false,
-                        timePlayed: '0 hrs',
-                        rating: 0
-                      };
-                      setSelectedGame(tempGame);
-                      router.push(`/game/view?id=${deal.gameID}&external=true`);
-                    }}
-                    className={`snap-start shrink-0 w-[260px] relative rounded-2xl overflow-hidden group bg-obsidian-dark border cursor-pointer transition-colors ${isRecommended ? 'border-mint-green shadow-[0_0_15px_rgba(94,230,168,0.2)]' : 'border-surface-border hover:border-neon-red/50'}`}
-                  >
-                    <div className="w-full aspect-[4/3] bg-cover bg-center" style={{ backgroundImage: `url(${deal.thumb})` }} />
-                    <div className="absolute top-2 left-2 bg-neon-red px-2 py-1 rounded shadow-neon">
-                      <span className="font-mono text-xs font-bold text-white uppercase tracking-wider">
-                        -{Math.round(parseFloat(deal.savings))}%
-                      </span>
-                    </div>
-                    {isRecommended && (
-                      <div className="absolute top-2 right-2 bg-mint-green px-2 py-1 rounded shadow-[0_0_10px_rgba(94,230,168,0.5)]">
-                        <span className="font-mono text-[10px] font-bold text-obsidian-black uppercase tracking-wider">
-                          ✨ IA Pick
-                        </span>
-                      </div>
-                    )}
-                    <div className="p-3 bg-obsidian-black border-t border-surface-border">
-                      <h3 className="font-heading font-bold text-sm text-white line-clamp-1 mb-2">{deal.title}</h3>
-                      <div className="flex items-center gap-2">
-                        <span className="text-text-dim text-xs line-through">{formatPrice(deal.normalPrice, currency)}</span>
-                        <span className="text-mint-green font-bold font-mono">{formatPrice(deal.salePrice, currency)}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
+      {isSearch ? (
+        <section aria-busy={searching}>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="eyebrow">{t('common.results')}</h2>
+            {!searching && results.length > 0 && (
+              <span className="font-mono text-[10px] text-text-dim">
+                {results.length} {t('common.found')}
+              </span>
             )}
           </div>
-        </section>
-      )}
-
-      {/* Section 2: EXPLORAR GÉNEROS */}
-      {searchQuery === '' && (
-        <section className="mb-8">
-          <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-text-dim mb-4 px-2">
-            {t('discover.genres')}
-          </h2>
-          <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4 snap-x">
-            {GENRES.map(genre => {
-              const isActive = activeGenre === genre.id;
-              const Icon = genre.icon;
-              return (
-                <button
-                  key={genre.id}
-                  onClick={() => setActiveGenre(genre.id)}
-                  className={`snap-start shrink-0 flex items-center gap-2 px-4 h-10 rounded-full font-mono text-xs font-bold tracking-wider transition-all border ${
-                    isActive 
-                      ? 'bg-neon-red/20 text-neon-red-bright border-neon-red shadow-neon' 
-                      : 'bg-surface-glass text-text-dim border-surface-border hover:text-white'
-                  }`}
-                >
-                  <Icon size={14} className={isActive ? "text-neon-red-bright" : "text-text-dim"} />
-                  <span className="uppercase">{genre.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* Section 3: PODRÍA GUSTARTE / BÚSQUEDA */}
-      <section>
-        <div className="flex items-center justify-between mb-4 px-2">
-          <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-text-dim">
-            {searchQuery !== '' ? t('common.results') : t('discover.mightLike')}
-          </h2>
-          {(searchQuery !== '' ? searchResults.length > 0 : filteredGames.length > 0) && (
-            <span className="font-mono text-[10px] text-text-dim">
-              {searchQuery !== '' ? searchResults.length : filteredGames.length} {t('common.found')}
-            </span>
+          {searching ? (
+            <div className="grid grid-cols-2 gap-3" role="status" aria-label={t('discover.searching')}>
+              {[0, 1, 2, 3].map((i) => (
+                <GameCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : results.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3">
+              {results.map((item) => (
+                <GameCard
+                  key={item.gameID}
+                  game={{ id: item.gameID, title: item.title, coverUrl: item.cover, genre: item.genre, platform: item.platform, status: 'GLOBAL', isFavorite: false, timePlayed: '', rating: 0 }}
+                  onOpen={() => openExternalGame(item, router)}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              art="search"
+              title={t('discover.noResults')}
+              body={t('discover.noResultsSub')}
+              actionLabel={t('discover.addGame')}
+              onAction={() => {
+                setAddQuery(query.trim());
+                setAddOpen(true);
+              }}
+            />
           )}
-        </div>
-
-        {searchQuery !== '' ? (
-          // Global Search Results
-          isSearching ? (
-            <div className="py-12 text-center text-text-dim font-mono text-xs uppercase">Buscando...</div>
-          ) : searchResults.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3 md:gap-6">
-              {searchResults.map(game => (
-                <div key={game.gameID} onClick={() => handleOpenGlobalGame(game)} className="cursor-pointer">
-                  <GameCard game={{
-                    id: game.gameID,
-                    title: game.title,
-                    coverUrl: game.cover,
-                    status: 'GLOBAL',
-                    rating: 0,
-                    isFavorite: false,
-                    timePlayed: '0 hrs',
-                    platform: game.platform,
-                    genre: game.genre,
-                  }} />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-surface-border rounded-2xl bg-surface-glass mt-2"
-            >
-              <p className="text-white font-heading font-bold text-lg mb-2">{t('discover.noResults')}</p>
-              <p className="text-text-dim font-body text-sm max-w-[250px]">
-                {t('discover.noResultsSub')}
-              </p>
-            </motion.div>
-          )
-        ) : (
-          // Standard Filtering from User Library
-          filteredGames.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3 md:gap-6">
-              {recommendations.map(game => (
-                <div key={game.id} className="relative cursor-pointer" onClick={() => {
-                  setSelectedGame(game);
-                  router.push(`/game/view?id=${game.id}`);
-                }}>
-                  <GameCard game={game} />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-surface-border rounded-2xl bg-surface-glass mt-2"
-            >
-              <p className="text-white font-heading font-bold text-lg mb-2">{t('discover.noResults')}</p>
-              <p className="text-text-dim font-body text-sm max-w-[250px]">
-                {t('discover.noResultsSub')}
-              </p>
-            </motion.div>
-          )
-        )}
-      </section>
-      <div className="flex justify-center mt-6 pb-32">
-        <Button variant="ghost" onClick={() => setShowAddModal(true)} className="border border-surface-border">
-          + Registrar Juego Nuevo
-        </Button>
-      </div>
-
-      {/* Add Game Modal */}
-      <AnimatePresence>
-        {showAddModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-obsidian-black/80 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
-            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} className="relative bg-obsidian-dark border border-surface-border p-6 rounded-3xl w-full max-w-sm shadow-glass">
-              <h3 className="font-heading font-bold text-xl text-white mb-4 uppercase">Nuevo Juego</h3>
-
-              <form onSubmit={submitNewGame} className="flex flex-col gap-4">
-                <div className="relative">
-                  <input
-                    required
-                    placeholder="Título del juego..."
-                    value={addSearchQuery}
-                    onChange={e => {
-                      setAddSearchQuery(e.target.value);
-                      setSelectedAddGame(null);
-                    }}
-                    className="w-full h-12 px-4 pl-10 bg-obsidian-black border border-surface-border rounded-xl text-white font-mono text-sm"
-                  />
-                  <div className="absolute left-3 top-3.5 text-text-dim">
-                     {isAddSearching ? <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}><Sparkles size={16}/></motion.div> : <SearchIcon size={16} />}
+        </section>
+      ) : (
+        <>
+          {/* The Oracle + manual registration */}
+          <motion.section variants={fadeUp} className="flex flex-col gap-3">
+            <AnimatePresence mode="wait" initial={false}>
+              {oracleLoading ? (
+                <motion.div
+                  key="loading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={tBase}
+                  role="status"
+                  className="flex h-[72px] items-center justify-center gap-3 rounded-2xl border border-neon-red/30 bg-neon-red/10"
+                >
+                  <OracleMark size={24} active className="text-neon-red-bright" />
+                  <p className="font-mono text-[11px] font-bold uppercase tracking-wider text-white">{t('discover.analyzing')}</p>
+                </motion.div>
+              ) : oracle ? (
+                <motion.div key="results" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={tBase}>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="eyebrow flex items-center gap-2 text-neon-red-bright">
+                      <OracleMark size={15} />
+                      {t('discover.oracleTitle')}
+                    </h2>
+                    <div className="-mr-2 flex">
+                      <button type="button" onClick={askOracle} className="flex h-11 items-center gap-1.5 px-2 font-mono text-[11px] font-bold uppercase tracking-wider text-text-dim hover:text-white">
+                        <RefreshCw size={13} aria-hidden />
+                        {t('discover.recalibrate')}
+                      </button>
+                      <button type="button" onClick={() => setOracle(null)} aria-label={t('discover.dismiss')} className="flex h-11 w-11 items-center justify-center text-text-dim hover:text-white">
+                        <X size={16} />
+                      </button>
+                    </div>
                   </div>
+                  <div className="scrollbar-hide -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1">
+                    {oracle.map((rec) => {
+                      const has = owned.has(rec.title.trim().toLowerCase());
+                      return (
+                        <div key={rec.id} className="flex w-[210px] shrink-0 snap-start flex-col gap-2">
+                          <GameCard
+                            game={{ id: rec.id, title: rec.title, coverUrl: rec.coverUrl, genre: rec.genre, platform: rec.platform, status: 'ORACLE', isFavorite: false, timePlayed: '', rating: 0 }}
+                            onOpen={() => openExternalGame({ gameID: rec.id, title: rec.title, cover: rec.coverUrl, genre: rec.genre, platform: rec.platform }, router)}
+                            chip={
+                              <span className="rounded-md border border-mint-green/60 bg-black/70 px-1.5 py-1 font-mono text-[10px] font-bold uppercase leading-none tracking-wider text-[#5EE6A8] backdrop-blur-md">
+                                {t('discover.match', { n: rec.matchScore })}
+                              </span>
+                            }
+                          />
+                          <p className="selectable line-clamp-4 min-h-[4.5rem] text-xs leading-relaxed text-text-dim">{rec.reason}</p>
+                          <Button
+                            variant={has ? 'ghost' : 'mint'}
+                            size="sm"
+                            className="w-full"
+                            disabled={has}
+                            onClick={() => register({ id: rec.id, title: rec.title, coverUrl: rec.coverUrl, genre: rec.genre, platform: rec.platform })}
+                          >
+                            {has ? <Check size={15} aria-hidden /> : <Plus size={15} aria-hidden />}
+                            {has ? t('discover.inBacklog') : t('discover.addToBacklog')}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.button
+                  key="cta"
+                  type="button"
+                  onClick={askOracle}
+                  data-tour="oracle"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={tBase}
+                  className="flex h-[72px] w-full items-center gap-4 rounded-2xl bg-neon-red px-5 text-left text-real-white shadow-neon transition-transform duration-150 active:scale-[0.98]"
+                >
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/25">
+                    <OracleMark size={26} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-heading text-base font-bold uppercase tracking-wide">{t('discover.oracleCta')}</span>
+                    <span className="block truncate text-xs text-real-white/80">{t('discover.oracleHint')}</span>
+                  </span>
+                </motion.button>
+              )}
+            </AnimatePresence>
 
-                  {/* Autocomplete Dropdown */}
-                  <AnimatePresence>
-                    {addSearchQuery.length > 2 && addSearchResults.length > 0 && !selectedAddGame && (
-                       <motion.div
-                         initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
-                         className="absolute top-14 left-0 right-0 max-h-60 overflow-y-auto bg-obsidian-dark border border-surface-border rounded-xl shadow-2xl z-50 flex flex-col gap-1 p-2"
-                       >
-                         {addSearchResults.map(res => (
-                           <button
-                             key={res.gameID}
-                             type="button"
-                             onClick={() => {
-                               setSelectedAddGame(res);
-                               setAddSearchQuery(res.title);
-                               setNewGame(prev => ({...prev, genre: res.genre || 'UNKNOWN', platform: res.platform || 'PC'}));
-                             }}
-                             className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors text-left"
-                           >
-                             <div className="w-12 h-16 flex-shrink-0 rounded bg-obsidian-black border border-white/5 overflow-hidden">
-                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                               <img src={res.cover || res.thumb} alt={res.title} className="w-full h-full object-cover" />
-                             </div>
-                             <div className="flex flex-col flex-1 overflow-hidden">
-                               <span className="font-heading font-bold text-sm text-white line-clamp-1">{res.title}</span>
-                               <span className="font-mono text-[9px] text-text-dim uppercase">{res.genre} • {res.platform}</span>
-                             </div>
-                           </button>
-                         ))}
-                       </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+            <Button variant="ghost" className="w-full" onClick={() => setAddOpen(true)} data-tour="add-game">
+              <Plus size={17} aria-hidden />
+              {t('discover.addGame')}
+            </Button>
+          </motion.section>
 
-                {selectedAddGame && (
-                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full h-32 rounded-xl border border-neon-red/30 overflow-hidden relative">
-                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                     <img src={selectedAddGame.cover || selectedAddGame.thumb} alt="Preview" className="w-full h-full object-cover" />
-                     <div className="absolute inset-0 bg-gradient-to-t from-obsidian-black to-transparent" />
-                     <div className="absolute bottom-2 left-2 flex gap-2">
-                       <span className="px-2 py-1 rounded bg-neon-red text-white text-[9px] font-mono font-bold uppercase tracking-wider">
-                         SELECCIONADO
-                       </span>
-                     </div>
-                  </motion.div>
+          {/* Steam deals */}
+          <motion.section variants={fadeUp} aria-busy={!deals}>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="eyebrow flex min-w-0 items-center gap-2">
+                <Flame size={14} className="shrink-0 text-neon-red-bright" aria-hidden />
+                <span className="truncate">{t('discover.deals')}</span>
+                {deals && (
+                  <span className={cn('shrink-0 rounded border px-1.5 py-0.5 text-[9px]', deals.live ? 'border-mint-green/40 text-mint-green' : 'border-surface-border text-text-dim')}>
+                    {t(deals.live ? 'discover.dealsLive' : 'discover.dealsLocal')}
+                  </span>
                 )}
+              </h2>
+              <button
+                type="button"
+                onClick={askAdvisor}
+                disabled={!deals || adviceLoading}
+                className="-mr-2 flex h-11 shrink-0 items-center gap-1.5 px-2 font-mono text-[11px] font-bold uppercase tracking-wider text-mint-green disabled:opacity-50"
+              >
+                <OracleMark size={14} active={adviceLoading} />
+                {adviceLoading ? t('discover.analyzingDeals') : t('discover.analyzeDeals')}
+              </button>
+            </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="relative">
-                    <label className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1 block">Plataforma</label>
-                    <div className="flex flex-col gap-1 border border-surface-border p-1 rounded-xl bg-obsidian-black">
-                      {['PC', 'PS5', 'Switch', 'Xbox'].map(plat => (
-                        <button
-                          key={plat}
-                          type="button"
-                          onClick={() => setNewGame({...newGame, platform: plat})}
-                          className={`w-full text-left px-3 py-1.5 rounded-lg font-mono text-xs transition-colors ${newGame.platform === plat ? 'bg-neon-red/20 text-neon-red-bright border border-neon-red/30' : 'text-text-dim hover:text-white hover:bg-white/5'}`}
-                        >
-                          {plat}
-                        </button>
-                      ))}
-                    </div>
+            <AnimatePresence>
+              {advice && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={tBase} className="overflow-hidden">
+                  <div className="mb-3 rounded-2xl border border-mint-green/40 bg-mint-green/10 p-4" role="status">
+                    <p className="eyebrow mb-1 text-mint-green">{t('discover.advisor')}</p>
+                    <p className="selectable text-sm leading-relaxed text-white">{advice.analysis}</p>
                   </div>
-                  <div className="relative">
-                    <label className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1 block">Género</label>
-                    <div className="flex flex-col gap-1 border border-surface-border p-1 rounded-xl bg-obsidian-black">
-                      {['RPG', 'ACTION', 'SHOOTER', 'RACING'].map(gen => (
-                        <button
-                          key={gen}
-                          type="button"
-                          onClick={() => setNewGame({...newGame, genre: gen})}
-                          className={`w-full text-left px-3 py-1.5 rounded-lg font-mono text-xs transition-colors ${newGame.genre === gen ? 'bg-mint-green/20 text-mint-green border border-mint-green/30' : 'text-text-dim hover:text-white hover:bg-white/5'}`}
-                        >
-                          {gen}
-                        </button>
-                      ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className="scrollbar-hide -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1">
+              {!deals
+                ? [0, 1, 2].map((i) => (
+                    <div key={i} className="w-[150px] shrink-0">
+                      <GameCardSkeleton />
+                      <div className="skeleton mt-2 h-4 w-24 rounded" />
                     </div>
+                  ))
+                : deals.items.map((deal) => {
+                    const pick = advice?.recommendedDealId === deal.dealID;
+                    return (
+                      <button
+                        key={deal.dealID}
+                        type="button"
+                        onClick={() => openExternalGame({ gameID: deal.gameID, title: deal.title, cover: deal.thumb, genre: 'PC', platform: 'PC' }, router)}
+                        className="w-[150px] shrink-0 snap-start text-left transition-transform duration-150 active:scale-[0.97]"
+                      >
+                        <div className={cn('relative aspect-[2/3] overflow-hidden rounded-2xl border bg-obsidian-dark', pick ? 'border-mint-green shadow-mint' : 'border-surface-border')}>
+                          <GameCover src={deal.thumb} title={deal.title} className="absolute inset-0 h-full w-full" />
+                          <span className="absolute left-2 top-2 rounded-md bg-neon-red px-1.5 py-1 font-mono text-[11px] font-bold leading-none text-real-white shadow-neon">
+                            −{deal.savings}%
+                          </span>
+                          {pick && (
+                            <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-[#5EE6A8] py-1.5 font-mono text-[9px] font-bold uppercase tracking-wider text-black">
+                              <OracleMark size={12} />
+                              {t('discover.advisorPick')}
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="mt-2 line-clamp-1 font-heading text-sm font-bold text-white">{deal.title}</h3>
+                        <p className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
+                          <span className="font-mono text-xs font-bold text-mint-green">{formatPrice(deal.salePrice, currency, language)}</span>
+                          <span className="font-mono text-[10px] text-text-dim line-through">{formatPrice(deal.normalPrice, currency, language)}</span>
+                        </p>
+                      </button>
+                    );
+                  })}
+            </div>
+          </motion.section>
+
+          {/* The player's own vault, by genre */}
+          <motion.section variants={fadeUp}>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="eyebrow">{t('discover.mightLike')}</h2>
+              {library.length > 0 && <span className="font-mono text-[10px] text-text-dim">{library.length}</span>}
+            </div>
+            {games.length === 0 ? (
+              <EmptyState art="signal" compact title={t('discover.emptyLibTitle')} body={t('discover.emptyLibBody')} />
+            ) : (
+              <>
+                <div className="rail-fade -mx-4 mb-4">
+                  <div className="scrollbar-hide flex gap-2 overflow-x-auto px-4 pr-12" role="radiogroup" aria-label={t('discover.genres')}>
+                    {libraryGenres.map((g) => (
+                      <Chip key={g} active={genre === g} onClick={() => setGenre(g)}>
+                        {genreLabel(t, g)}
+                      </Chip>
+                    ))}
                   </div>
                 </div>
-                <Button type="submit" variant="neon" className="w-full mt-2">Guardar en Backlog</Button>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                {library.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {library.slice(0, 6).map((game) => (
+                      <GameCard key={game.id} game={game} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="py-8 text-center text-sm text-text-dim">{t('discover.emptyGenre')}</p>
+                )}
+              </>
+            )}
+          </motion.section>
+        </>
+      )}
 
-    </div>
+      <Modal open={addOpen} onClose={closeAdd} title={t('discover.addTitle')} variant="sheet">
+        <form onSubmit={submitNewGame} className="flex flex-col gap-5">
+          <div>
+            <label htmlFor="add-title" className="eyebrow mb-1.5 block">
+              {t('discover.addTitleLabel')}
+            </label>
+            <div className="relative">
+              <SearchIcon size={17} className={cn('pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-text-dim', addSearching && 'animate-pulse-ring text-neon-red-bright')} aria-hidden />
+              <input
+                id="add-title"
+                required
+                maxLength={120}
+                autoComplete="off"
+                placeholder={t('discover.addPlaceholder')}
+                value={addQuery}
+                onChange={(e) => {
+                  setAddQuery(e.target.value);
+                  setPicked(null);
+                }}
+                className="field pl-11 font-body"
+              />
+            </div>
+
+            {addResults.length > 0 && !picked && (
+              <ul className="mt-2 flex flex-col gap-1 rounded-2xl border border-surface-border bg-obsidian-black p-1.5">
+                {addResults.map((res) => (
+                  <li key={res.gameID}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPicked(res);
+                        setAddQuery(res.title);
+                        setDraft((d) => ({
+                          ...d,
+                          genre: GENRES.includes(res.genre.toUpperCase()) ? res.genre.toUpperCase() : d.genre,
+                          platform: PLATFORMS.find((p) => res.platform.toUpperCase().includes(p.toUpperCase())) || d.platform,
+                        }));
+                      }}
+                      className="flex min-h-[56px] w-full items-center gap-3 rounded-xl p-1.5 text-left transition-colors hover:bg-white/5"
+                    >
+                      <GameCover src={res.cover} title={res.title} className="h-12 w-9 shrink-0 rounded-md" />
+                      <span className="min-w-0">
+                        <span className="line-clamp-1 font-heading text-sm font-bold text-white">{res.title}</span>
+                        <span className="font-mono text-[10px] uppercase text-text-dim">
+                          {genreLabel(t, res.genre)} · {res.platform}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {picked && (
+              <div className="mt-2 flex items-center gap-3 rounded-2xl border border-neon-red/40 bg-neon-red/10 p-2">
+                <GameCover src={picked.cover} title={picked.title} className="h-16 w-12 shrink-0 rounded-lg" />
+                <div className="min-w-0">
+                  <p className="eyebrow text-neon-red-bright">{t('discover.selected')}</p>
+                  <p className="line-clamp-2 font-heading text-sm font-bold text-white">{picked.title}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <fieldset>
+            <legend className="eyebrow mb-2">{t('discover.platform')}</legend>
+            <div className="flex flex-wrap gap-2" role="radiogroup">
+              {PLATFORMS.map((p) => (
+                <Chip key={p} active={draft.platform === p} onClick={() => setDraft({ ...draft, platform: p })}>
+                  {p}
+                </Chip>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend className="eyebrow mb-2">{t('discover.genreLabel')}</legend>
+            <div className="flex flex-wrap gap-2" role="radiogroup">
+              {GENRES.map((g) => (
+                <Chip key={g} tone="mint" active={draft.genre === g} onClick={() => setDraft({ ...draft, genre: g })}>
+                  {genreLabel(t, g)}
+                </Chip>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend className="eyebrow mb-2">{t('discover.statusLabel')}</legend>
+            <div className="flex flex-wrap gap-2" role="radiogroup">
+              {STATUSES.map((s) => (
+                <Chip key={s} active={draft.status === s} onClick={() => setDraft({ ...draft, status: s })}>
+                  {statusLabel(t, s)}
+                </Chip>
+              ))}
+            </div>
+          </fieldset>
+
+          <Button type="submit" variant="neon" className="w-full" data-action="save-game">
+            {t('discover.saveToBacklog')}
+          </Button>
+        </form>
+      </Modal>
+    </motion.div>
   );
 }

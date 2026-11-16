@@ -1,443 +1,314 @@
 import { create } from 'zustand';
 import { FirebaseError } from 'firebase/app';
-import { auth, isFirebaseConfigured, db } from '@/lib/firebase';
-import { syncUserProfileToCloud } from '@/services/firestoreService';
-import { doc, deleteDoc } from 'firebase/firestore';
 import {
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
+  EmailAuthProvider,
   createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  reauthenticateWithCredential,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
   updateProfile,
-  signOut
+  type User,
 } from 'firebase/auth';
+import { auth, isFirebaseConfigured } from '@/lib/firebase';
+import {
+  cachedUser,
+  clearLocalUserData,
+  isLegacyLocalUid,
+  migrateLocalData,
+  readVault,
+  removeAccount,
+  sanitizeVault,
+  saveAccount,
+} from '@/lib/accountVault';
+import { demoAuth } from '@/lib/demoAuth';
+import {
+  deleteUserCloudData,
+  findPublicProfileByGamertag,
+  syncUserProfileToCloud,
+} from '@/services/firestoreService';
 
-interface UserProfile {
+export interface UserProfile {
   uid: string;
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
   bio?: string;
   title?: string;
-  level?: number;
-  xp?: number;
-  platinums?: number;
-  totalHours?: number;
 }
+
+/** Errors are dictionary keys (auth.errors.* / auth.validation.*), translated by the UI. */
+export type AuthErrorKey = string;
+export type DeleteResult = 'ok' | 'reauth' | 'error';
 
 interface AuthState {
   user: UserProfile | null;
   isAuthLoading: boolean;
-  authError: string | null;
+  authError: AuthErrorKey | null;
 }
 
 interface AuthActions {
   initAuthListener: () => () => void;
   signInWithEmail: (email: string, pass: string) => Promise<boolean>;
   signUpWithEmail: (email: string, pass: string, username: string) => Promise<boolean>;
-  signInWithGoogleAccount: (email: string, displayName: string) => Promise<boolean>;
+  sendPasswordReset: (email: string) => Promise<AuthErrorKey | null>;
   logout: () => Promise<void>;
-  deleteAccount: () => Promise<boolean>;
+  deleteAccount: (password?: string) => Promise<DeleteResult>;
   clearError: () => void;
   updateUserProfile: (data: Partial<UserProfile>) => Promise<void>;
 }
 
-const mapFirebaseError = (error: unknown): string => {
-  if (error instanceof Error && error.message === 'AUTH_TIMEOUT') {
-    return 'Error de conexión con el servidor de autenticación. Verifica tu internet.';
+export const GAMERTAG_RE = /^[A-Za-z][A-Za-z0-9_]{2,15}$/;
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const AUTH_TIMEOUT_MS = 12000;
+
+const errorKey = (error: unknown): AuthErrorKey => {
+  if (error instanceof Error && error.message === 'AUTH_TIMEOUT') return 'auth.errors.timeout';
+  const code = error instanceof FirebaseError ? error.code : (error as { code?: string })?.code;
+  switch (code) {
+    case 'auth/invalid-credential':
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-login-credentials':
+      return 'auth.errors.invalidCredentials';
+    case 'auth/email-already-in-use':
+      return 'auth.errors.emailInUse';
+    case 'auth/weak-password':
+      return 'auth.errors.weakPassword';
+    case 'auth/invalid-email':
+      return 'auth.errors.invalidEmail';
+    case 'auth/network-request-failed':
+      return 'auth.errors.network';
+    case 'auth/too-many-requests':
+      return 'auth.errors.tooMany';
+    case 'auth/operation-not-allowed':
+    case 'auth/configuration-not-found':
+      return 'auth.errors.disabled';
+    default:
+      return 'auth.errors.generic';
   }
-  if (error instanceof FirebaseError) {
-    switch (error.code) {
-      case 'auth/invalid-credential':
-      case 'auth/user-not-found':
-      case 'auth/wrong-password':
-        return 'Credenciales incorrectas.';
-      case 'auth/email-already-in-use':
-        return 'Este correo ya está registrado.';
-      case 'auth/weak-password':
-        return 'La contraseña debe tener al menos 6 caracteres.';
-      case 'auth/invalid-email':
-        return 'El formato del correo es inválido.';
-      default:
-        return 'Error de autenticación. Inténtalo de nuevo.';
-    }
-  }
-  return 'Ocurrió un error inesperado.';
 };
 
-const withTimeout = <T>(promise: Promise<T>, ms = 3500): Promise<T> => {
-  let timeoutId: NodeJS.Timeout;
-  const timeoutPromise = new Promise<T>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error('AUTH_TIMEOUT'));
-    }, ms);
+const withTimeout = <T,>(promise: Promise<T>, ms = AUTH_TIMEOUT_MS): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('AUTH_TIMEOUT')), ms);
   });
-  return Promise.race([
-    promise,
-    timeoutPromise
-  ]).finally(() => clearTimeout(timeoutId));
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 };
 
-const getInitialCachedUser = (): UserProfile | null => {
-  if (typeof window !== 'undefined') {
-    const cached = localStorage.getItem('gamerbox_cached_user');
-    if (cached) return JSON.parse(cached);
-  }
-  return null;
-};
+const gamertagTakenLocally = (gamertag: string, exceptEmail: string) =>
+  Object.values(readVault()).some(
+    (acc) => acc.email !== exceptEmail && acc.displayName?.toLowerCase() === gamertag.toLowerCase()
+  );
 
-export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
-  user: getInitialCachedUser(),
-  isAuthLoading: getInitialCachedUser() ? false : true,
-  authError: null,
-
-  initAuthListener: () => {
-    // If running strictly in demo mode, clear state if no cached user exists
-    if (!isFirebaseConfigured) {
-      if (!getInitialCachedUser()) {
-        set({ user: null, isAuthLoading: false });
-      }
-      return () => {};
+export const useAuthStore = create<AuthState & AuthActions>((set, get) => {
+  /** Persist the non-sensitive session + saved-account entry and adopt any legacy local profile. */
+  const establish = (profile: UserProfile) => {
+    const email = profile.email?.toLowerCase() || '';
+    const previous = readVault()[email];
+    let next = profile;
+    if (previous && previous.uid !== profile.uid && isLegacyLocalUid(previous.uid)) {
+      migrateLocalData(previous.uid, profile.uid);
+      next = { ...profile, photoURL: profile.photoURL || previous.photoURL, title: previous.title };
+    } else if (previous && previous.uid === profile.uid) {
+      next = { ...profile, photoURL: profile.photoURL || previous.photoURL, title: profile.title || previous.title };
     }
+    cachedUser.write(next);
+    if (email) saveAccount({ uid: next.uid, email, displayName: next.displayName, photoURL: next.photoURL, title: next.title });
+    set({ user: next, isAuthLoading: false, authError: null });
+  };
 
-    const watchdog = setTimeout(() => {
-      if (get().isAuthLoading) {
-        console.warn('🔐 [GamerBox Auth] Watchdog unlocked UI');
-        set({ isAuthLoading: false });
+  const fromFirebase = (u: User, displayName?: string): UserProfile => ({
+    uid: u.uid,
+    email: u.email,
+    displayName: displayName ?? u.displayName,
+    photoURL: u.photoURL,
+  });
+
+  const fail = (key: AuthErrorKey) => {
+    set({ authError: key });
+    return false;
+  };
+
+  return {
+    user: cachedUser.read<UserProfile>(),
+    isAuthLoading: !cachedUser.read<UserProfile>(),
+    authError: null,
+
+    initAuthListener: () => {
+      sanitizeVault();
+
+      if (!isFirebaseConfigured) {
+        // Local demo mode: the cached profile is the session.
+        set({ user: cachedUser.read<UserProfile>(), isAuthLoading: false });
+        return () => {};
       }
-    }, 2000);
 
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      clearTimeout(watchdog);
+      const watchdog = setTimeout(() => {
+        if (get().isAuthLoading) set({ isAuthLoading: false });
+      }, 4000);
 
-      if (firebaseUser) {
-        const newUser = {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL
-        };
-        if (typeof window !== 'undefined') localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
-        set({ user: newUser, isAuthLoading: false });
-      } else {
-        // CRITICAL: DO NOT clear user if we have a valid cached user from a local vault sign-in!
-        const cached = getInitialCachedUser();
-        if (cached) {
-           console.warn('🔐 [GamerBox Auth] Firebase token missing but cached vault user found. Keeping session alive.');
-           set({ user: cached, isAuthLoading: false });
+      return onAuthStateChanged(auth, (firebaseUser) => {
+        clearTimeout(watchdog);
+        if (firebaseUser) {
+          const cached = cachedUser.read<UserProfile>();
+          const extras = cached?.uid === firebaseUser.uid ? cached : null;
+          const profile: UserProfile = {
+            ...fromFirebase(firebaseUser),
+            displayName: firebaseUser.displayName || extras?.displayName || null,
+            photoURL: extras?.photoURL || firebaseUser.photoURL,
+            bio: extras?.bio,
+            title: extras?.title,
+          };
+          cachedUser.write(profile);
+          set({ user: profile, isAuthLoading: false });
         } else {
-           if (typeof window !== 'undefined') localStorage.removeItem('gamerbox_cached_user');
-           set({ user: null, isAuthLoading: false });
+          // No Firebase session means signed out. Profiles created by old builds without a
+          // real account stay listed under "saved accounts" but can no longer open a session.
+          cachedUser.clear();
+          set({ user: null, isAuthLoading: false });
         }
-      }
-    });
+      });
+    },
 
-    return unsubscribe;
-  },
+    signInWithEmail: async (email, pass) => {
+      set({ authError: null });
+      const emailLower = email.trim().toLowerCase();
 
-  signInWithEmail: async (email, pass) => {
-    set({ authError: null });
-    const emailLower = email.trim().toLowerCase();
-
-    const handleFallback = (e?: Record<string, unknown>) => {
-      // STRICT: Never bypass real credential errors
-      if (e && (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found')) {
-         set({ authError: 'Credenciales incorrectas. Verifica tu correo y contraseña.' });
-         return false;
-      }
-
-      if (typeof window !== 'undefined') {
-        const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
-        if (vaultStr) {
-          const vault = JSON.parse(vaultStr);
-          const account = vault[emailLower];
-          if (account) {
-            if (account.passwordHash === pass) {
-              set({ user: account, isAuthLoading: false, authError: null });
-              return true;
-            } else {
-              set({ authError: 'Contraseña incorrecta.' });
-              return false;
-            }
-          }
+      if (!isFirebaseConfigured) {
+        const account = readVault()[emailLower];
+        if (!account || !demoAuth.has(emailLower)) return fail('auth.errors.noAccount');
+        try {
+          if (!(await demoAuth.verify(emailLower, pass))) return fail('auth.errors.invalidCredentials');
+        } catch {
+          return fail('auth.errors.generic');
         }
-      }
-      set({ authError: 'No existe una cuenta con este correo. Regístrate primero en Crear Cuenta.' });
-      return false;
-    };
-
-    if (!isFirebaseConfigured) {
-      console.warn('🔐 [GamerBox Auth] Demo Mode: Fake Sign In using Vault');
-      return handleFallback();
-    }
-
-    try {
-      const userCredential = await withTimeout(signInWithEmailAndPassword(auth, email, pass), 5000);
-      const newUser = {
-        uid: userCredential.user.uid,
-        email: userCredential.user.email,
-        displayName: userCredential.user.displayName,
-        photoURL: userCredential.user.photoURL
-      };
-
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
-        const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
-        const vault = vaultStr ? JSON.parse(vaultStr) : {};
-        vault[emailLower] = { ...newUser, passwordHash: pass };
-        localStorage.setItem('gamerbox_accounts_vault', JSON.stringify(vault));
+        establish({ ...account });
+        return true;
       }
 
-      set({ user: newUser, isAuthLoading: false, authError: null });
-      return true;
-    } catch (error: unknown) {
-      const e = error as Record<string, unknown>;
-      if (error instanceof Error) {
-        if (
-          error.message === 'AUTH_TIMEOUT' ||
-          e.code === 'auth/network-request-failed' ||
-          e.code === 'auth/configuration-not-found' ||
-          e.code === 'auth/operation-not-allowed' ||
-          e.code === 'auth/internal-error'
-        ) {
-          return handleFallback(e);
-        }
-      }
-
-      return handleFallback(e);
-    }
-  },
-
-  signUpWithEmail: async (email, pass, username) => {
-    set({ authError: null });
-
-    const usernameClean = username.trim().toLowerCase();
-    if (usernameClean.length < 3) {
-      set({ authError: 'El Gamertag debe tener al menos 3 caracteres.' });
-      return false;
-    }
-    if (pass.length < 6) {
-      set({ authError: 'La contraseña debe tener al menos 6 caracteres.' });
-      return false;
-    }
-
-    const emailLower = email.trim().toLowerCase();
-
-    // STRICT CHECK: Ensure uniqueness before trying Firebase
-    if (typeof window !== 'undefined') {
-      const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
-      if (vaultStr) {
-        const vault = JSON.parse(vaultStr);
-        if (vault[emailLower]) {
-           set({ authError: 'Este correo ya está registrado. Por favor usa la pestaña Iniciar Sesión.' });
-           return false;
-        }
-        const usernameTaken = Object.values(vault).some((acc: unknown) => {
-          const profile = acc as Record<string, unknown>;
-          return typeof profile.displayName === 'string' && profile.displayName.toLowerCase() === usernameClean;
-        });
-        if (usernameTaken) {
-           set({ authError: `El Gamertag "${username.trim()}" ya está en uso. Elige otro identificador.` });
-           return false;
-        }
-      }
-    }
-
-    const handleFallbackCreate = () => {
-      console.warn('🔐 [GamerBox Auth] Fallback Mode: Fake Sign Up due to network/timeout');
-      const newUser = { uid: 'local-' + Date.now(), email: emailLower, displayName: username, photoURL: null };
-
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
-        const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
-        const vault = vaultStr ? JSON.parse(vaultStr) : {};
-        vault[emailLower] = { ...newUser, passwordHash: pass };
-        localStorage.setItem('gamerbox_accounts_vault', JSON.stringify(vault));
-      }
-
-      set({ user: newUser, isAuthLoading: false, authError: null });
-      return true;
-    };
-
-    if (!isFirebaseConfigured) {
-      return handleFallbackCreate();
-    }
-
-    try {
-      const userCredential = await withTimeout(createUserWithEmailAndPassword(auth, email, pass), 5000);
-      updateProfile(userCredential.user, { displayName: username }).catch(() => {});
-
-      const newUser = {
-        uid: userCredential.user.uid,
-        email: userCredential.user.email,
-        displayName: username,
-        photoURL: userCredential.user.photoURL
-      };
-
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
-        const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
-        const vault = vaultStr ? JSON.parse(vaultStr) : {};
-        vault[emailLower] = { ...newUser, passwordHash: pass };
-        localStorage.setItem('gamerbox_accounts_vault', JSON.stringify(vault));
-      }
-
-      set({ user: newUser, isAuthLoading: false, authError: null });
-      return true;
-    } catch (error: unknown) {
-      const e = error as Record<string, unknown>;
-
-      if (e.code === 'auth/email-already-in-use') {
-         set({ authError: 'Este correo ya está registrado. Inicia sesión con tu cuenta.' });
-         return false;
-      }
-
-      if (error instanceof Error) {
-        if (
-          error.message === 'AUTH_TIMEOUT' ||
-          e.code === 'auth/network-request-failed' ||
-          e.code === 'auth/configuration-not-found' ||
-          e.code === 'auth/operation-not-allowed' ||
-          e.code === 'auth/internal-error'
-        ) {
-          return handleFallbackCreate();
-        }
-      }
-
-      set({ authError: mapFirebaseError(error) });
-      return false;
-    }
-  },
-
-  signInWithGoogleAccount: async (email, displayName) => {
-    set({ authError: null });
-    const emailLower = email.trim().toLowerCase();
-
-    // Check if account already exists
-    if (typeof window !== 'undefined') {
-      const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
-      if (vaultStr) {
-        const vault = JSON.parse(vaultStr);
-        if (vault[emailLower]) {
-           const existingUser = vault[emailLower];
-           localStorage.setItem('gamerbox_cached_user', JSON.stringify(existingUser));
-           set({ user: existingUser, isAuthLoading: false, authError: null });
-
-           // If they have a custom game library associated with this uid, we shouldn't overwrite it
-           // useGameStore will pick up the new UID on next hydration or reload
-           return true;
-        }
-      }
-    }
-
-    const newUser = {
-      uid: 'google-' + emailLower.replace(/[^a-z0-9]/g, '_'),
-      email: emailLower,
-      displayName,
-      photoURL: null,
-      level: 1,
-      xp: 0,
-      platinums: 0,
-      totalHours: 0
-    };
-
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('gamerbox_cached_user', JSON.stringify(newUser));
-      const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
-      const vault = vaultStr ? JSON.parse(vaultStr) : {};
-      vault[emailLower] = { ...newUser, passwordHash: 'google-oauth' };
-      localStorage.setItem('gamerbox_accounts_vault', JSON.stringify(vault));
-    }
-    set({ user: newUser, isAuthLoading: false, authError: null });
-    return true;
-  },
-
-  deleteAccount: async () => {
-    const user = get().user;
-    if (!user) return false;
-
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('gamerbox_cached_user');
-      localStorage.removeItem('gamerbox-storage');
-      const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
-      if (vaultStr && user.email) {
-        const vault = JSON.parse(vaultStr);
-        delete vault[user.email.toLowerCase()];
-        localStorage.setItem('gamerbox_accounts_vault', JSON.stringify(vault));
-      }
-    }
-
-    if (isFirebaseConfigured && auth.currentUser) {
       try {
-        await deleteDoc(doc(db, 'users', user.uid)).catch(() => {});
-        await auth.currentUser.delete().catch(() => {});
+        const cred = await withTimeout(signInWithEmailAndPassword(auth, emailLower, pass));
+        establish(fromFirebase(cred.user));
+        return true;
       } catch (error) {
-        console.warn('Silent fallback on delete', error);
+        return fail(errorKey(error));
       }
-    }
+    },
 
-    set({ user: null });
-    return true;
-  },
+    signUpWithEmail: async (email, pass, username) => {
+      set({ authError: null });
+      const emailLower = email.trim().toLowerCase();
+      const gamertag = username.trim();
 
-  logout: async () => {
-    if (typeof window !== 'undefined') localStorage.removeItem('gamerbox_cached_user');
+      if (!GAMERTAG_RE.test(gamertag)) return fail('auth.validation.gamertagRule');
+      if (!EMAIL_RE.test(emailLower)) return fail('auth.validation.emailInvalid');
+      if (pass.length < 6) return fail('auth.validation.passwordShort');
+      if (gamertagTakenLocally(gamertag, emailLower)) return fail('auth.errors.gamertagTaken');
 
-    if (!isFirebaseConfigured) {
-      console.warn('🔐 [GamerBox Auth] Demo Mode: Fake Logout');
-      localStorage.removeItem('demo_user');
-      set({ user: null });
-      return;
-    }
-
-    try {
-      await signOut(auth);
-      set({ user: null });
-    } catch (error) {
-      console.error('Logout error', error);
-    }
-  },
-
-  updateUserProfile: async (data: Partial<UserProfile>) => {
-    const user = get().user;
-    if (!user) return;
-
-    const newProfile = { ...user, ...data };
-    set({ user: newProfile });
-
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('gamerbox_cached_user', JSON.stringify(newProfile));
-      if (newProfile.email) {
-         const vaultStr = localStorage.getItem('gamerbox_accounts_vault');
-         if (vaultStr) {
-           const vault = JSON.parse(vaultStr);
-           if (vault[newProfile.email.toLowerCase()]) {
-              vault[newProfile.email.toLowerCase()] = { ...vault[newProfile.email.toLowerCase()], ...newProfile };
-              localStorage.setItem('gamerbox_accounts_vault', JSON.stringify(vault));
-           }
-         }
-      }
-    }
-
-    if (isFirebaseConfigured && auth.currentUser) {
-      if (data.displayName !== undefined || data.photoURL !== undefined) {
-        updateProfile(auth.currentUser, {
-          displayName: data.displayName ?? auth.currentUser.displayName,
-          photoURL: data.photoURL ?? auth.currentUser.photoURL
-        }).catch(console.error);
+      if (!isFirebaseConfigured) {
+        if (demoAuth.has(emailLower)) return fail('auth.errors.emailInUse');
+        try {
+          await demoAuth.register(emailLower, pass);
+        } catch {
+          return fail('auth.errors.generic');
+        }
+        establish({ uid: `demo-${Date.now()}`, email: emailLower, displayName: gamertag, photoURL: null });
+        return true;
       }
 
-      // Sync extra profile fields to Firestore
-      syncUserProfileToCloud(auth.currentUser.uid, {
-        bio: newProfile.bio,
-        title: newProfile.title,
-        level: newProfile.level,
-        platinums: newProfile.platinums,
-        totalHours: newProfile.totalHours,
-        xp: newProfile.xp
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any).catch(console.error);
-    }
-  },
+      try {
+        const cred = await withTimeout(createUserWithEmailAndPassword(auth, emailLower, pass));
 
-  clearError: () => set({ authError: null }),
-}));
+        // Gamertags are unique across accounts. The lookup needs a signed-in user, so it
+        // runs right after creation and rolls the new account back if the tag is taken.
+        const existing = await findPublicProfileByGamertag(gamertag);
+        if (existing && existing.uid !== cred.user.uid) {
+          await cred.user.delete().catch(() => signOut(auth).catch(() => {}));
+          return fail('auth.errors.gamertagTaken');
+        }
+
+        await updateProfile(cred.user, { displayName: gamertag }).catch(() => {});
+        establish(fromFirebase(cred.user, gamertag));
+        return true;
+      } catch (error) {
+        return fail(errorKey(error));
+      }
+    },
+
+    sendPasswordReset: async (email) => {
+      const emailLower = email.trim().toLowerCase();
+      if (!EMAIL_RE.test(emailLower)) return 'auth.validation.emailInvalid';
+      if (!isFirebaseConfigured) return 'auth.forgotDemo';
+      try {
+        await withTimeout(sendPasswordResetEmail(auth, emailLower));
+        return null;
+      } catch (error) {
+        const key = errorKey(error);
+        // Do not reveal whether an address is registered.
+        return key === 'auth.errors.invalidCredentials' ? null : key;
+      }
+    },
+
+    logout: async () => {
+      cachedUser.clear();
+      set({ user: null, authError: null });
+      if (isFirebaseConfigured) {
+        await signOut(auth).catch(() => {});
+      }
+    },
+
+    deleteAccount: async (password) => {
+      const user = get().user;
+      if (!user) return 'error';
+
+      if (isFirebaseConfigured) {
+        const current = auth.currentUser;
+        if (!current || current.uid !== user.uid) return 'error';
+        try {
+          if (password && current.email) {
+            await withTimeout(reauthenticateWithCredential(current, EmailAuthProvider.credential(current.email, password)));
+          }
+          await deleteUserCloudData(user.uid);
+          await withTimeout(current.delete());
+        } catch (error) {
+          const code = (error as { code?: string })?.code;
+          if (code === 'auth/requires-recent-login') return 'reauth';
+          return 'error';
+        }
+      } else if (user.email) {
+        demoAuth.remove(user.email.toLowerCase());
+      }
+
+      clearLocalUserData(user.uid);
+      removeAccount(user.email);
+      cachedUser.clear();
+      set({ user: null, authError: null });
+      return 'ok';
+    },
+
+    updateUserProfile: async (data) => {
+      const user = get().user;
+      if (!user) return;
+
+      const next: UserProfile = { ...user, ...data };
+      set({ user: next });
+      cachedUser.write(next);
+      if (next.email) {
+        saveAccount({ uid: next.uid, email: next.email, displayName: next.displayName, photoURL: next.photoURL, title: next.title });
+      }
+
+      if (isFirebaseConfigured && auth.currentUser?.uid === next.uid) {
+        if (data.displayName !== undefined && data.displayName !== auth.currentUser.displayName) {
+          updateProfile(auth.currentUser, { displayName: data.displayName }).catch(() => {});
+        }
+        // Avatars may be data URLs, too large for the Auth profile: they live in the user's own doc.
+        await syncUserProfileToCloud(next.uid, { bio: next.bio, title: next.title, photoURL: next.photoURL });
+      }
+    },
+
+    clearError: () => set({ authError: null }),
+  };
+});

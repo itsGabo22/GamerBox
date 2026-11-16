@@ -1,385 +1,349 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { useGameStore, Game } from '@/store/useGameStore';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Clock, Trophy, Heart, Sparkles, Check, ChevronDown, ChevronRight } from 'lucide-react';
+import React, { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { ArrowLeft, ChevronRight, Clock, Heart, Minus, Plus, Trash2 } from 'lucide-react';
+import { useGameStore, type Game, type GameStatus } from '@/store/useGameStore';
 import { Button } from '@/components/ui/Button';
 import { GlassPanel } from '@/components/ui/GlassPanel';
-import { getGameTacticalBreakdown } from '@/services/aiService';
-import { SafeGameImage } from '@/components/ui/SafeGameImage';
-import { useTranslation } from '@/i18n/useTranslation';
+import { Modal } from '@/components/ui/Modal';
+import { GameCover } from '@/components/ui/SafeGameImage';
+import { OracleMark } from '@/components/ui/OracleMark';
+import { getGameTacticalBreakdown, type TacticalBreakdown } from '@/services/aiService';
+import { readActiveGame } from '@/lib/openGame';
+import { toast } from '@/store/useToastStore';
+import { useTranslation, genreLabel, statusLabel } from '@/i18n/useTranslation';
+import { fadeUp, stagger } from '@/lib/motion';
+import { cn } from '@/lib/cn';
 
-export default function GameViewPage() {
-  const searchParams = useSearchParams();
+const STATUSES: GameStatus[] = ['PENDING', 'PLAYING', 'COMPLETED'];
+
+function GameView() {
+  const id = useSearchParams().get('id');
   const router = useRouter();
-  const id = searchParams.get('id');
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
+  const { selectedGame, games, addGame, removeGame, updateGameStatus, updateGameProgress, toggleFavorite, logPlaySession } = useGameStore();
 
-  const { selectedGame, games, addGame, updateGameStatus, toggleFavorite, logPlaySession } = useGameStore();
+  const [external, setExternal] = useState<Game | null>(null);
+  const [breakdown, setBreakdown] = useState<TacticalBreakdown | null>(null);
+  const [loadingBrief, setLoadingBrief] = useState(false);
+  const [dossierOpen, setDossierOpen] = useState(false);
+  const [hours, setHours] = useState(1);
 
-  const [aiBreakdown, setAiBreakdown] = useState<{ synopsis: string; matchReason: string; tips: string[]; timeToBeat: string; difficulty: string } | null>(null);
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [showDossierModal, setShowDossierModal] = useState(false);
-  const [hoursToAdd, setHoursToAdd] = useState(1);
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
-
-  // If we arrived here without a selected game, try to find it in the user's library
-  const localGame = games.find(g => g.id === id);
-  const gameToDisplay: Game | null = localGame || selectedGame;
-
-  // Sync state if game is added to library while viewing
-  const isInLibrary = !!localGame;
-
+  const owned = games.find((g) => g.id === id) || null;
   useEffect(() => {
-     if (gameToDisplay && !aiBreakdown && !isAiLoading) {
-         handleAiBreakdown();
-     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameToDisplay]);
+    if (!owned) setExternal(selectedGame?.id === id ? selectedGame : readActiveGame(id));
+  }, [owned, selectedGame, id]);
 
-  // Make sure we save it to session storage to persist across reloads
+  const game = owned || external;
+  const goBack = () => (window.history.length > 1 ? router.back() : router.replace('/'));
+
+  // A new game or language invalidates the briefing.
   useEffect(() => {
-    if (gameToDisplay && typeof window !== 'undefined') {
-      sessionStorage.setItem('gamerbox_active_game', JSON.stringify(gameToDisplay));
-    }
-  }, [gameToDisplay]);
+    setBreakdown(null);
+  }, [id, language]);
 
-  // Fallback to read from session storage if state lost
-  let finalGame = gameToDisplay;
-  if (!finalGame && typeof window !== 'undefined') {
-    const saved = sessionStorage.getItem('gamerbox_active_game');
-    if (saved) {
-      finalGame = JSON.parse(saved);
-    }
-  }
-
-  if (!finalGame) {
+  if (!game) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen text-white">
-        <p className="font-mono text-xs uppercase tracking-widest text-text-dim">Juego no encontrado</p>
-        <Button variant="ghost" onClick={() => router.back()} className="mt-4">
-          <ArrowLeft size={16} className="mr-2" /> Volver
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="eyebrow">{t('game.notFound')}</p>
+        <Button variant="ghost" onClick={goBack}>
+          <ArrowLeft size={16} aria-hidden />
+          {t('common.back')}
         </Button>
       </div>
     );
   }
 
-  const handleAiBreakdown = async () => {
-    setIsAiLoading(true);
+  const progress = game.status === 'COMPLETED' ? 100 : game.progress || 0;
+
+  const loadBriefing = async () => {
+    setLoadingBrief(true);
     try {
-      const breakdown = await getGameTacticalBreakdown(finalGame!.title);
-      setAiBreakdown(breakdown);
+      setBreakdown(await getGameTacticalBreakdown(game.title, language));
     } finally {
-      setIsAiLoading(false);
+      setLoadingBrief(false);
     }
   };
 
-  const handleAddHours = () => {
-    if (isInLibrary) {
-      logPlaySession(finalGame!.id, hoursToAdd);
-      setHoursToAdd(1);
-    }
+  const logHours = () => {
+    logPlaySession(game.id, hours);
+    toast(t('game.logged', { n: hours, title: game.title }), 'success');
+    setHours(1);
   };
 
-  const handleChangeStatus = (status: string) => {
-    if (isInLibrary) {
-      updateGameStatus(finalGame!.id, status);
-      setShowStatusDropdown(false);
-    }
+  const changeStatus = (status: GameStatus) => {
+    if (status === game.status) return;
+    updateGameStatus(game.id, status);
+    toast(t('game.statusChanged', { status: statusLabel(t, status) }), 'success');
   };
+
+  const roundButton =
+    'flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/50 text-real-white backdrop-blur-md transition-transform duration-150 active:scale-90';
 
   return (
-    <div className="flex flex-col w-full min-h-screen bg-obsidian-black pb-24 relative overflow-x-hidden">
-      {/* Hero Header */}
-      <div className="relative w-full h-[55vh] min-h-[400px]">
-        <SafeGameImage
-          src={finalGame.coverUrl}
-          alt={finalGame.title}
-          genre={finalGame.genre}
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-obsidian-black via-obsidian-black/80 to-transparent" />
-
-        {/* Top Nav */}
-        <div className="absolute top-0 left-0 w-full p-4 flex items-center justify-between z-20">
-          <button
-            onClick={() => router.back()}
-            className="w-10 h-10 rounded-full bg-obsidian-black/50 backdrop-blur-md flex items-center justify-center border border-white/10 text-white"
-          >
-            <ArrowLeft size={20} />
-          </button>
-
-          {isInLibrary && (
-            <button
-              onClick={() => toggleFavorite(finalGame!.id)}
-              className="w-10 h-10 rounded-full bg-obsidian-black/50 backdrop-blur-md flex items-center justify-center border border-white/10"
-            >
-              <Heart size={20} className={finalGame!.isFavorite ? "fill-neon-red text-neon-red" : "text-white"} />
-            </button>
-          )}
-        </div>
-
-        {/* Hero Content */}
-        <div className="absolute bottom-0 left-0 w-full p-6 z-20">
-          {isInLibrary && (
-            <div className="relative inline-block mb-4">
-              <button
-                onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-glass border border-surface-border text-white font-mono text-[10px] font-bold uppercase tracking-widest shadow-glass hover:bg-surface-glass-hover transition-colors"
-              >
-                {finalGame.status}
-                <ChevronDown size={12} />
-              </button>
-
-              <AnimatePresence>
-                {showStatusDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute top-full left-0 mt-2 w-32 bg-obsidian-dark border border-surface-border rounded-xl shadow-glass overflow-hidden z-50 flex flex-col"
-                  >
-                    {[
-                      { key: 'PENDING', label: t('common.pending') },
-                      { key: 'PLAYING', label: t('common.playing') },
-                      { key: 'COMPLETED', label: t('common.completed') },
-                    ].map(s => (
-                      <button
-                        key={s.key}
-                        onClick={() => handleChangeStatus(s.key)}
-                        className="px-3 py-2 text-left font-mono text-[10px] text-text-dim hover:text-white hover:bg-white/5 transition-colors uppercase tracking-widest flex items-center justify-between"
-                      >
-                        {s.label}
-                        {finalGame!.status === s.key && <Check size={12} className="text-neon-red" />}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
-
-          <h1 className="font-heading font-black text-4xl text-white mb-2 leading-tight drop-shadow-md">
-            {finalGame.title}
-          </h1>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white font-mono text-[10px] font-bold uppercase tracking-wider">
-              {finalGame.platform}
-            </span>
-            <span className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-text-dim font-mono text-[10px] uppercase tracking-wider">
-              {finalGame.genre}
-            </span>
-          </div>
-        </div>
+    <div className="relative flex min-h-[100dvh] w-full flex-col pb-10">
+      {/* Blurred backdrop + whole, uncropped cover */}
+      <div className="absolute inset-x-0 top-0 h-[300px] overflow-hidden" aria-hidden>
+        <GameCover src={game.coverUrl} title={game.title} backdrop className="h-full w-full" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-obsidian-black/60 to-obsidian-black" />
       </div>
 
-      {/* Main Content Body */}
-      <div className="px-6 -mt-4 relative z-20 flex flex-col gap-6">
+      <div className="relative z-10 flex items-center justify-between px-4" style={{ paddingTop: 'calc(var(--sat) + 12px)' }}>
+        <button type="button" onClick={goBack} aria-label={t('common.back')} className={roundButton}>
+          <ArrowLeft size={20} />
+        </button>
+        {owned && (
+          <button
+            type="button"
+            onClick={() => toggleFavorite(game.id)}
+            aria-pressed={game.isFavorite}
+            aria-label={t(game.isFavorite ? 'game.favoriteRemove' : 'game.favoriteAdd')}
+            className={roundButton}
+            data-action="favorite"
+          >
+            <Heart size={20} className={game.isFavorite ? 'fill-neon-red-bright text-neon-red-bright' : ''} />
+          </button>
+        )}
+      </div>
 
-        {!isInLibrary ? (
-          <GlassPanel className="p-5 flex flex-col items-center text-center gap-4 border-neon-red/30 shadow-[0_0_20px_rgba(255,42,85,0.1)]">
-            <p className="font-body text-sm text-white/80">Este juego no está en tu biblioteca de GamerBox.</p>
-            <Button
-              variant="neon"
-              className="w-full"
-              onClick={() => {
-                addGame(finalGame!);
-                router.replace('/backlog'); // Navigate to backlog after adding
-              }}
-            >
-              + Añadir a mi Backlog
-            </Button>
-          </GlassPanel>
-        ) : (
-          <GlassPanel className="p-5 flex flex-col gap-4 border-mint-green/30 shadow-[0_0_20px_rgba(94,230,168,0.05)]">
-            <div className="flex items-center justify-between border-b border-surface-border pb-4">
-              <div className="flex items-center gap-3">
-                <Clock size={20} className="text-mint-green" />
-                <div>
-                  <p className="font-mono text-[10px] text-text-dim uppercase tracking-widest">Tiempo Jugado</p>
-                  <p className="font-heading font-bold text-xl text-white">{finalGame.hoursPlayed || 0} hrs</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  max="24"
-                  value={hoursToAdd}
-                  onChange={(e) => setHoursToAdd(parseInt(e.target.value) || 1)}
-                  className="w-12 h-8 bg-obsidian-black border border-surface-border rounded-lg text-center text-white font-mono text-xs focus:outline-none focus:border-mint-green"
-                />
-                <button
-                  onClick={handleAddHours}
-                  className="h-8 px-3 bg-mint-green/20 text-mint-green hover:bg-mint-green hover:text-obsidian-black rounded-lg font-mono text-xs font-bold transition-colors"
-                >
-                  + LOG
-                </button>
-              </div>
+      <motion.div variants={stagger} initial="hidden" animate="show" className="relative z-10 mt-5 flex flex-col gap-6 px-4">
+        <motion.header variants={fadeUp} className="flex items-end gap-4">
+          <GameCover src={game.coverUrl} title={game.title} genre={game.genre} className="aspect-[2/3] w-[124px] shrink-0 rounded-2xl border border-surface-border shadow-glass" />
+          <div className="min-w-0 pb-1">
+            <h1 className="selectable font-heading text-2xl font-black leading-tight text-white">{game.title}</h1>
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              {[game.platform, genreLabel(t, game.genre)].filter(Boolean).map((tag) => (
+                <span key={tag} className="rounded-full border border-surface-border bg-surface-glass px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-text-dim">
+                  {tag}
+                </span>
+              ))}
             </div>
+          </div>
+        </motion.header>
 
-            <div className="flex items-center gap-3 pt-2">
-              <Trophy size={20} className="text-text-dim" />
-              <div className="flex-1">
-                <div className="flex justify-between items-end mb-1">
-                  <p className="font-mono text-[10px] text-text-dim uppercase tracking-widest">Progreso / Trofeos</p>
-                  <p className="font-mono text-xs font-bold text-white">{finalGame.progress || 0}%</p>
+        {!owned ? (
+          <motion.div variants={fadeUp}>
+            <GlassPanel className="flex flex-col gap-4 border-neon-red/30 p-5 text-center">
+              <p className="text-sm text-text-dim">{t('game.notInLibrary')}</p>
+              <Button
+                variant="neon"
+                className="w-full"
+                data-action="add-to-vault"
+                onClick={() => {
+                  const ok = addGame(game);
+                  toast(t(ok ? 'discover.added' : 'discover.duplicate', { title: game.title }), ok ? 'success' : 'error');
+                }}
+              >
+                <Plus size={17} aria-hidden />
+                {t('game.addToBacklog')}
+              </Button>
+            </GlassPanel>
+          </motion.div>
+        ) : (
+          <>
+            <motion.section variants={fadeUp} aria-labelledby="status-label">
+              <h2 id="status-label" className="eyebrow mb-2">
+                {t('game.status')}
+              </h2>
+              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-labelledby="status-label">
+                {STATUSES.map((status) => {
+                  const active = game.status === status;
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      data-status={status}
+                      onClick={() => changeStatus(status)}
+                      className={cn(
+                        'h-12 rounded-2xl border font-mono text-[11px] font-bold uppercase tracking-wider transition-colors duration-150 active:scale-[0.97]',
+                        active
+                          ? status === 'COMPLETED'
+                            ? 'border-mint-green/60 bg-mint-green/15 text-mint-green'
+                            : 'border-neon-red bg-neon-red/15 text-neon-red-bright'
+                          : 'border-surface-border bg-surface-glass text-text-dim'
+                      )}
+                    >
+                      {statusLabel(t, status)}
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.section>
+
+            <motion.div variants={fadeUp}>
+              <GlassPanel className="flex flex-col gap-5 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <Clock size={20} className="text-mint-green" aria-hidden />
+                    <div>
+                      <p className="eyebrow">{t('game.timePlayed')}</p>
+                      <p className="font-heading text-2xl font-black leading-tight text-white">{t('common.hoursShort', { n: game.hoursPlayed || 0 })}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center" role="group" aria-label={t('game.logLabel')}>
+                    <button type="button" onClick={() => setHours((h) => Math.max(1, h - 1))} aria-label={t('game.less')} className="flex h-11 w-10 items-center justify-center rounded-l-xl border border-surface-border text-text-dim active:bg-white/10">
+                      <Minus size={15} />
+                    </button>
+                    <output className="flex h-11 w-10 items-center justify-center border-y border-surface-border font-mono text-sm font-bold text-white" aria-live="polite">
+                      {hours}
+                    </output>
+                    <button type="button" onClick={() => setHours((h) => Math.min(24, h + 1))} aria-label={t('game.more')} className="flex h-11 w-10 items-center justify-center rounded-r-xl border border-surface-border text-text-dim active:bg-white/10">
+                      <Plus size={15} />
+                    </button>
+                  </div>
                 </div>
-                <div className="h-1.5 w-full bg-obsidian-black rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${finalGame.progress || 0}%` }}
-                    className="h-full bg-neon-red"
+                <Button variant="mint" size="sm" className="w-full" onClick={logHours} data-action="log-hours">
+                  <Plus size={15} aria-hidden />
+                  {t('game.log')} · {t('common.hoursShort', { n: hours })}
+                </Button>
+
+                <div className="border-t border-surface-border pt-4">
+                  <div className="mb-2 flex items-end justify-between">
+                    <label htmlFor="progress" className="eyebrow">
+                      {t('game.progress')}
+                    </label>
+                    <span className="font-mono text-xs font-bold text-white">{progress}%</span>
+                  </div>
+                  <input
+                    id="progress"
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={progress}
+                    disabled={game.status === 'COMPLETED'}
+                    onChange={(e) => updateGameProgress(game.id, Number(e.target.value))}
+                    aria-label={t('game.progressLabel')}
+                    className="h-11 w-full accent-[rgb(var(--c-red))] disabled:opacity-60"
                   />
                 </div>
-              </div>
-            </div>
-          </GlassPanel>
+              </GlassPanel>
+            </motion.div>
+          </>
         )}
 
-        {/* AI Tactical Breakdown */}
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-mono text-[10px] font-bold tracking-widest uppercase text-text-dim flex items-center gap-2">
-              <Sparkles size={14} className="text-mint-green" />
-              GAMERBOX AI
-            </h2>
-          </div>
+        {/* Oracle briefing (on demand) */}
+        <motion.section variants={fadeUp}>
+          <h2 className="eyebrow mb-3 flex items-center gap-2 text-neon-red-bright">
+            <OracleMark size={15} />
+            {t('game.briefing')}
+          </h2>
 
-          {!aiBreakdown && !isAiLoading ? (
+          {loadingBrief ? (
+            <div className="flex h-28 flex-col items-center justify-center gap-3 rounded-2xl border border-surface-border bg-surface-glass" role="status">
+              <OracleMark size={28} active className="text-neon-red-bright" />
+              <p className="font-mono text-[11px] uppercase tracking-wider text-text-dim">{t('game.analyzing')}</p>
+            </div>
+          ) : !breakdown ? (
             <button
-              onClick={handleAiBreakdown}
-              className="w-full py-6 flex flex-col items-center justify-center gap-3 bg-surface-glass border border-surface-border border-dashed rounded-2xl hover:border-mint-green/50 hover:bg-mint-green/5 transition-all group"
+              type="button"
+              onClick={loadBriefing}
+              data-action="briefing"
+              className="flex min-h-[72px] w-full items-center gap-4 rounded-2xl border border-dashed border-surface-border bg-surface-glass px-5 text-left transition-colors hover:border-neon-red/50 active:scale-[0.99]"
             >
-              <Sparkles size={24} className="text-text-dim group-hover:text-mint-green transition-colors" />
-              <span className="font-mono text-xs uppercase tracking-widest text-text-dim group-hover:text-white transition-colors">
-                Generar Análisis Táctico
-              </span>
+              <OracleMark size={26} className="shrink-0 text-neon-red-bright" />
+              <span className="flex-1 font-heading text-sm font-bold uppercase tracking-wide text-white">{t('game.generate')}</span>
+              <ChevronRight size={18} className="text-text-dim" aria-hidden />
             </button>
-          ) : isAiLoading ? (
-            <div className="w-full h-32 bg-surface-glass border border-surface-border rounded-2xl flex flex-col items-center justify-center gap-3">
-              <motion.div
-                animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
-                transition={{ repeat: Infinity, duration: 1.5 }}
-                className="w-8 h-8 rounded-full border-2 border-mint-green border-t-transparent animate-spin"
-              />
-              <p className="font-mono text-[10px] uppercase tracking-widest text-text-dim">
-                Analizando metadatos...
-              </p>
-            </div>
           ) : (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="flex flex-col gap-3 bg-zinc-900/70 backdrop-blur-xl border border-white/10 rounded-2xl p-5 shadow-2xl"
-            >
-              <div className="border-l-2 border-l-mint-green pl-3">
-                <p className="font-mono text-[10px] text-mint-green uppercase font-bold tracking-widest mb-2">Sinopsis</p>
-                <p className="font-body text-sm text-white/90 leading-relaxed text-pretty line-clamp-3">
-                  {aiBreakdown?.synopsis}
-                </p>
+            <GlassPanel className="flex flex-col gap-4 p-5">
+              <div className="border-l-2 border-neon-red pl-3">
+                <p className="eyebrow mb-1">{t('game.synopsis')}</p>
+                <p className="selectable line-clamp-4 text-sm leading-relaxed text-white/90">{breakdown.synopsis}</p>
               </div>
-
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                <div className="bg-obsidian-dark border border-surface-border rounded-xl p-3">
-                  <p className="font-mono text-[10px] text-text-dim uppercase font-bold tracking-widest mb-1">Tiempo Estimado</p>
-                  <p className="font-heading text-sm font-bold text-white line-clamp-1">{aiBreakdown?.timeToBeat}</p>
-                </div>
-                <div className="bg-obsidian-dark border border-surface-border rounded-xl p-3">
-                  <p className="font-mono text-[10px] text-text-dim uppercase font-bold tracking-widest mb-1">Dificultad</p>
-                  <p className="font-heading text-sm font-bold text-white line-clamp-1">{aiBreakdown?.difficulty}</p>
-                </div>
-              </div>
-
+              <dl className="grid grid-cols-2 gap-3">
+                {[
+                  { label: t('game.timeToBeat'), value: breakdown.timeToBeat },
+                  { label: t('game.difficulty'), value: breakdown.difficulty },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-xl border border-surface-border bg-white/5 p-3">
+                    <dt className="eyebrow mb-1 text-[9px]">{item.label}</dt>
+                    <dd className="font-heading text-sm font-bold leading-snug text-white">{item.value}</dd>
+                  </div>
+                ))}
+              </dl>
               <button
-                onClick={() => setShowDossierModal(true)}
-                className="mt-2 group relative overflow-hidden rounded-xl bg-neon-red/10 border border-neon-red/30 p-4 text-left hover:bg-neon-red/20 transition-colors"
+                type="button"
+                onClick={() => setDossierOpen(true)}
+                data-action="dossier"
+                className="flex min-h-[56px] items-center gap-3 rounded-xl border border-neon-red/30 bg-neon-red/10 px-4 py-3 text-left transition-colors hover:bg-neon-red/15"
               >
-                <p className="font-mono text-[10px] text-neon-red-bright uppercase font-bold tracking-widest mb-1 flex items-center justify-between">
-                  PRO TIPS TÁCTICOS
-                  <ChevronRight size={14} className="text-neon-red-bright transform group-hover:translate-x-1 transition-transform" />
-                </p>
-                <p className="font-body text-xs text-white/90 line-clamp-1 italic">
-                  {aiBreakdown?.tips[0]}
-                </p>
-                <div className="absolute top-0 right-0 p-2 opacity-50 group-hover:opacity-100 transition-opacity">
-                   <Sparkles size={16} className="text-neon-red-bright" />
-                </div>
+                <span className="min-w-0 flex-1">
+                  <span className="eyebrow block text-neon-red-bright">{t('game.tips')}</span>
+                  <span className="mt-0.5 line-clamp-1 block text-xs text-white/80">{breakdown.tips[0]}</span>
+                </span>
+                <ChevronRight size={18} className="shrink-0 text-neon-red-bright" aria-hidden />
               </button>
-            </motion.div>
+            </GlassPanel>
           )}
-        </section>
+        </motion.section>
 
-      </div>
-
-      {/* Dossier Táctico Modal */}
-      <AnimatePresence>
-        {showDossierModal && aiBreakdown && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowDossierModal(false)} />
-            <motion.div
-              initial={{ y: 20, opacity: 0, scale: 0.95 }}
-              animate={{ y: 0, opacity: 1, scale: 1 }}
-              exit={{ y: 20, opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-lg bg-zinc-950/90 backdrop-blur-2xl border border-neon-red/30 rounded-3xl p-6 shadow-[0_0_50px_rgba(255,42,85,0.15)] max-h-[85vh] overflow-y-auto"
+        {owned && (
+          <motion.div variants={fadeUp}>
+            <Button
+              variant="danger"
+              className="w-full"
+              onClick={() => {
+                removeGame(game.id);
+                toast(t('game.removed', { title: game.title }));
+                router.replace('/backlog');
+              }}
             >
-              <div className="flex justify-between items-center mb-6 sticky top-0 bg-zinc-950/90 py-2 z-10 border-b border-surface-border">
-                <div>
-                  <h3 className="font-heading font-black text-xl text-white uppercase leading-tight">{finalGame.title}</h3>
-                  <p className="font-mono text-[10px] text-neon-red-bright tracking-widest uppercase flex items-center gap-1 mt-1">
-                    <Sparkles size={10} /> DOSSIER TÁCTICO GAMERBOX AI
-                  </p>
-                </div>
-                <button onClick={() => setShowDossierModal(false)} className="w-8 h-8 rounded-full bg-surface-glass flex items-center justify-center text-text-dim hover:text-white transition-colors">
-                  <ArrowLeft size={16} />
-                </button>
-              </div>
+              <Trash2 size={16} aria-hidden />
+              {t('game.remove')}
+            </Button>
+          </motion.div>
+        )}
+      </motion.div>
 
-              <div className="flex flex-col gap-6">
-                <div>
-                  <h4 className="font-mono text-[10px] text-text-dim uppercase font-bold tracking-widest mb-2 border-b border-surface-border pb-1">Análisis General</h4>
-                  <p className="font-body text-sm text-white/90 leading-relaxed text-pretty mb-3">
-                    {aiBreakdown.synopsis}
-                  </p>
-                  <p className="font-body text-sm text-mint-green/90 italic leading-relaxed text-pretty border-l-2 border-mint-green pl-3">
-                    &quot;{aiBreakdown.matchReason}&quot;
-                  </p>
+      <Modal open={dossierOpen && Boolean(breakdown)} onClose={() => setDossierOpen(false)} title={game.title} eyebrow={t('game.dossier')} variant="sheet">
+        {breakdown && (
+          <div className="selectable flex flex-col gap-6">
+            <section>
+              <h3 className="eyebrow mb-2">{t('game.overview')}</h3>
+              <p className="text-sm leading-relaxed text-white/90">{breakdown.synopsis}</p>
+              <p className="mt-3 border-l-2 border-mint-green pl-3 text-sm italic leading-relaxed text-mint-green">{breakdown.matchReason}</p>
+            </section>
+            <section>
+              <h3 className="eyebrow mb-3">{t('game.strategy')}</h3>
+              <ol className="flex flex-col gap-3">
+                {breakdown.tips.map((tip, i) => (
+                  <li key={i} className="flex gap-3 rounded-2xl border border-surface-border bg-white/5 p-4">
+                    <span className="font-heading text-2xl font-black leading-none text-neon-red/50" aria-hidden>
+                      0{i + 1}
+                    </span>
+                    <p className="pt-0.5 text-sm leading-relaxed text-white/90">{tip}</p>
+                  </li>
+                ))}
+              </ol>
+            </section>
+            <dl className="grid grid-cols-2 gap-3">
+              {[
+                { label: t('game.duration'), value: breakdown.timeToBeat },
+                { label: t('game.difficulty'), value: breakdown.difficulty },
+              ].map((item) => (
+                <div key={item.label} className="rounded-2xl border border-surface-border bg-white/5 p-4 text-center">
+                  <dt className="eyebrow mb-1 text-[9px]">{item.label}</dt>
+                  <dd className="font-heading text-sm font-bold text-white">{item.value}</dd>
                 </div>
-
-                <div>
-                  <h4 className="font-mono text-[10px] text-text-dim uppercase font-bold tracking-widest mb-3 border-b border-surface-border pb-1">Estrategia Avanzada</h4>
-                  <div className="flex flex-col gap-3">
-                    {aiBreakdown.tips.map((tip, idx) => (
-                      <div key={idx} className="flex gap-3 bg-obsidian-black border border-surface-border rounded-xl p-4">
-                        <span className="font-heading font-black text-2xl text-neon-red/30 leading-none">0{idx + 1}</span>
-                        <p className="font-body text-sm text-white/90 leading-relaxed pt-1">
-                          {tip}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mt-2">
-                  <div className="bg-surface-glass border border-surface-border rounded-xl p-4 text-center">
-                    <p className="font-mono text-[10px] text-text-dim uppercase font-bold tracking-widest mb-1">Duración</p>
-                    <p className="font-heading text-base font-bold text-white">{aiBreakdown.timeToBeat}</p>
-                  </div>
-                  <div className="bg-surface-glass border border-surface-border rounded-xl p-4 text-center">
-                    <p className="font-mono text-[10px] text-text-dim uppercase font-bold tracking-widest mb-1">Dificultad</p>
-                    <p className="font-heading text-base font-bold text-white">{aiBreakdown.difficulty}</p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
+              ))}
+            </dl>
           </div>
         )}
-      </AnimatePresence>
-
+      </Modal>
     </div>
+  );
+}
+
+// useSearchParams needs a Suspense boundary for the static export.
+export default function GameViewPage() {
+  return (
+    <Suspense fallback={<div className="px-4 pt-24"><div className="skeleton h-64 w-full" /></div>}>
+      <GameView />
+    </Suspense>
   );
 }

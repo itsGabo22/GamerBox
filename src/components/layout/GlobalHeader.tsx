@@ -3,62 +3,62 @@
 import React from 'react';
 import { usePathname } from 'next/navigation';
 import { Bell, Settings } from 'lucide-react';
-import { useNotifications } from '@/components/notifications/NotificationProvider';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useNotificationStore } from '@/store/useNotificationStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { useTranslation } from '@/i18n/useTranslation';
+import { GBMark } from '@/components/brand/CrystalMark';
 
 export const GlobalHeader = () => {
-  const pathname = usePathname();
-  const { unreadCount, openDrawer } = useNotifications();
-  const openSettings = useSettingsStore(state => state.openSettings);
+  const pathname = usePathname() || '/';
+  const { t } = useTranslation();
+  const openSettings = useSettingsStore((s) => s.openSettings);
+  const openDrawer = useNotificationStore((s) => s.openDrawer);
+  // The badge is derived from real, unread notifications only.
+  const unread = useNotificationStore((s) => s.notifications.filter((n) => !n.read).length);
 
-  // Hide on game detail routes to provide immersive full-screen experience
-  if (pathname.startsWith('/game/')) return null;
+  if (pathname.startsWith('/game')) return null;
+
+  const iconButton =
+    'relative flex h-11 w-11 items-center justify-center rounded-full border border-surface-border bg-surface-glass text-white transition-colors duration-150 hover:bg-surface-glass-hover active:scale-95';
 
   return (
-    <>
-      <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-4 md:px-8 bg-obsidian-black/80 backdrop-blur-xl border-b border-surface-border">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-neon-red flex items-center justify-center font-heading font-black text-white shadow-neon text-sm">
-            GB
-          </div>
-          <span className="font-heading font-bold text-white tracking-wide">
-            GamerBox
-          </span>
-        </div>
+    <header
+      className="sticky top-0 z-30 flex items-center justify-between border-b border-surface-border bg-obsidian-black/80 px-4 pb-3 backdrop-blur-xl"
+      style={{ paddingTop: 'calc(var(--sat) + 12px)' }}
+    >
+      <div className="flex items-center gap-2.5">
+        <GBMark className="h-9 w-9 text-sm" />
+        <span className="font-heading text-lg font-bold tracking-wide text-white">GamerBox</span>
+      </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={openSettings}
-            className="w-10 h-10 rounded-full bg-surface-glass flex items-center justify-center border border-surface-border text-white hover:bg-surface-glass-hover hover:rotate-90 transition-all duration-300"
-            aria-label="Ajustes"
-          >
-            <Settings size={18} />
-          </button>
-
-          <button
-            onClick={openDrawer}
-            className="relative w-10 h-10 rounded-full bg-surface-glass flex items-center justify-center border border-surface-border text-white hover:bg-surface-glass-hover transition-colors"
-            aria-label="Notificaciones"
-          >
-            <Bell size={18} />
-            <AnimatePresence>
-              {unreadCount > 0 && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  exit={{ scale: 0 }}
-                  className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-neon-red-bright flex items-center justify-center shadow-neon"
-                >
-                  <span className="font-mono text-[10px] font-bold text-white">
-                    {unreadCount}
-                  </span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </button>
-        </div>
-      </header>
-    </>
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={openSettings} className={iconButton} aria-label={t('settings.open')} data-tour="settings">
+          <Settings size={19} aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={openDrawer}
+          className={iconButton}
+          aria-label={unread > 0 ? `${t('notifications.open')} (${unread})` : t('notifications.open')}
+          data-action="notifications"
+        >
+          <Bell size={19} aria-hidden />
+          <AnimatePresence>
+            {unread > 0 && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0 }}
+                className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-neon-red-bright px-1 font-mono text-[10px] font-bold text-real-white shadow-neon"
+                aria-hidden
+              >
+                {unread > 9 ? '9+' : unread}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </button>
+      </div>
+    </header>
   );
 };

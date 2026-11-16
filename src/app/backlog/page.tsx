@@ -1,124 +1,167 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { BacklogStats } from '@/components/backlog/BacklogStats';
-import { Search } from '@/components/backlog/Search';
-import { FilterChips, Filter } from '@/components/backlog/FilterChips';
+import React, { useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Search as SearchIcon, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { GameCard } from '@/components/dashboard/GameCard';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useGameStore } from '@/store/useGameStore';
-import { useTranslation } from '@/i18n/useTranslation';
+import { useTranslation, genreLabel, statusLabel } from '@/i18n/useTranslation';
+import { formatNumber } from '@/i18n/format';
+import { getProgression } from '@/lib/progression';
+import { fadeUp, stagger } from '@/lib/motion';
+import { cn } from '@/lib/cn';
+
+const STATUSES = ['PLAYING', 'PENDING', 'COMPLETED'] as const;
+const platformsOf = (platform: string) => platform.split(',').map((p) => p.trim().toUpperCase()).filter(Boolean);
 
 export default function BacklogPage() {
-  const games = useGameStore(state => state.games);
-  const { t } = useTranslation();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const games = useGameStore((state) => state.games);
+  const { t, language } = useTranslation();
+  const router = useRouter();
+  const [query, setQuery] = useState('');
+  const [active, setActive] = useState<string[]>([]);
 
-  const AVAILABLE_FILTERS: Filter[] = [
-    { id: 'status:PLAYING', label: t('common.playing'), type: 'status' },
-    { id: 'status:PENDING', label: t('common.pending'), type: 'status' },
-    { id: 'status:COMPLETED', label: t('common.completed'), type: 'status' },
-    { id: 'platform:PS5', label: 'PS5', type: 'platform' },
-    { id: 'platform:PC', label: 'PC', type: 'platform' },
-    { id: 'platform:SWITCH', label: 'SWITCH', type: 'platform' },
-    { id: 'genre:RPG', label: 'RPG', type: 'genre' },
-    { id: 'genre:ACTION', label: 'ACTION', type: 'genre' },
-  ];
+  const stats = useMemo(() => getProgression(games), [games]);
+  const pending = games.length - stats.playing - stats.completed;
 
-  const handleToggleFilter = (filterId: string) => {
-    setActiveFilters(prev => 
-      prev.includes(filterId) 
-        ? prev.filter(f => f !== filterId)
-        : [...prev, filterId]
-    );
-  };
+  // Filters are built from what is actually in the vault, so no chip is ever a dead end.
+  const filters = useMemo(() => {
+    const platforms = Array.from(new Set(games.flatMap((g) => platformsOf(g.platform)))).slice(0, 5);
+    const genres = Array.from(new Set(games.map((g) => (g.genre || 'UNKNOWN').toUpperCase()))).slice(0, 6);
+    return [
+      ...STATUSES.map((s) => ({ id: `status:${s}`, label: statusLabel(t, s) })),
+      ...platforms.map((p) => ({ id: `platform:${p}`, label: p })),
+      ...genres.map((g) => ({ id: `genre:${g}`, label: genreLabel(t, g) })),
+    ];
+  }, [games, t]);
 
-  const handleResetFilters = () => {
-    setActiveFilters([]);
-    setSearchQuery('');
-  };
-
-  const filteredGames = useMemo(() => {
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const groups: Record<string, string[]> = {};
+    active.forEach((id) => {
+      const [type, value] = id.split(':');
+      (groups[type] ||= []).push(value);
+    });
+    // OR inside a group (PS5 or PC), AND between groups (… and RPG).
     return games.filter((game) => {
-      // 1. Search filter
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const matchesSearch = 
-          game.title.toLowerCase().includes(query) ||
-          (game.genre && game.genre.toLowerCase().includes(query)) ||
-          (game.platform && game.platform.toLowerCase().includes(query));
-        
-        if (!matchesSearch) return false;
-      }
-
-      // 2. Faceted filters
-      if (activeFilters.length > 0) {
-        // Group active filters by type to allow OR within same type and AND between different types
-        // Example: (PS5 OR PC) AND (RPG)
-        const filterGroups = activeFilters.reduce((acc, filterId) => {
-          const [type, value] = filterId.split(':');
-          if (!acc[type]) acc[type] = [];
-          acc[type].push(value.toUpperCase());
-          return acc;
-        }, {} as Record<string, string[]>);
-
-        for (const [type, values] of Object.entries(filterGroups)) {
-          if (type === 'status' && !values.includes(game.status.toUpperCase())) return false;
-          if (type === 'platform' && (!game.platform || !values.includes(game.platform.toUpperCase()))) return false;
-          if (type === 'genre' && (!game.genre || !values.includes(game.genre.toUpperCase()))) return false;
-        }
-      }
-
+      if (q && !`${game.title} ${game.genre} ${game.platform}`.toLowerCase().includes(q)) return false;
+      if (groups.status && !groups.status.includes(game.status)) return false;
+      if (groups.platform && !platformsOf(game.platform).some((p) => groups.platform.includes(p))) return false;
+      if (groups.genre && !groups.genre.includes((game.genre || 'UNKNOWN').toUpperCase())) return false;
       return true;
     });
-  }, [searchQuery, activeFilters, games]);
+  }, [games, query, active]);
+
+  const toggle = (id: string) => setActive((prev) => (prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]));
+  const reset = () => {
+    setActive([]);
+    setQuery('');
+  };
+
+  const kpis = [
+    { label: t('backlog.total'), value: games.length, tone: 'text-white' },
+    { label: t('backlog.pending'), value: pending, tone: 'text-white' },
+    { label: t('backlog.playing'), value: stats.playing, tone: 'text-neon-red-bright' },
+    { label: t('backlog.completed'), value: stats.completed, tone: 'text-mint-green' },
+  ];
+
+  const chip = (on: boolean) =>
+    cn(
+      'flex h-11 shrink-0 snap-start items-center rounded-full border px-4 font-mono text-[11px] font-bold uppercase tracking-wider transition-colors duration-150 active:scale-95',
+      on ? 'border-neon-red bg-neon-red/15 text-neon-red-bright' : 'border-surface-border bg-surface-glass text-text-dim hover:text-white'
+    );
 
   return (
-    <div className="flex flex-col w-full px-4 pt-6 md:px-8 pb-12">
-      {/* Vault Header */}
-      <header className="mb-6">
-        <h1 className="text-3xl font-heading font-bold uppercase tracking-tight text-white mb-1">
-          {t('backlog.title')}
-        </h1>
-        <p className="font-mono text-xs text-text-dim tracking-widest uppercase">
-          {t('backlog.subtitle')}
+    <motion.div variants={stagger} initial="hidden" animate="show" className="pb-nav flex w-full flex-col px-4 pt-6">
+      <motion.header variants={fadeUp} className="mb-5">
+        <h1 className="font-heading text-3xl font-bold uppercase tracking-tight text-white">{t('backlog.title')}</h1>
+        <p className="eyebrow mt-1.5">
+          {t('backlog.subtitle', { games: formatNumber(games.length, language), hours: formatNumber(stats.totalHours, language) })}
         </p>
-      </header>
+      </motion.header>
 
-      {/* KPI System */}
-      <BacklogStats />
-
-      {/* Search Interface (Sticky) */}
-      <div className="sticky top-4 z-40 bg-obsidian-black/80 backdrop-blur-md pb-2 -mx-4 px-4 md:-mx-8 md:px-8 shadow-[0_8px_16px_-8px_rgba(0,0,0,0.5)]">
-        <Search 
-          value={searchQuery} 
-          onChange={(e) => setSearchQuery(e.target.value)} 
-        />
-        
-        <FilterChips 
-          filters={AVAILABLE_FILTERS}
-          activeFilters={activeFilters}
-          onToggle={handleToggleFilter}
-          onReset={handleResetFilters}
-          totalCount={games.length}
-        />
-      </div>
-
-      {/* Game Library Grid */}
-      <div className="mt-6 mb-12">
-        <div className="grid grid-cols-2 gap-3 md:gap-6">
-          {filteredGames.map((game) => (
-            <GameCard key={game.id} game={game} />
-          ))}
-        </div>
-        
-        {filteredGames.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-surface-border rounded-2xl bg-surface-glass mt-4">
-            <p className="text-text-dim font-mono text-sm uppercase tracking-wider mb-2">{t('backlog.noResults')}</p>
-            <p className="text-white/50 text-xs max-w-[200px]">{t('backlog.noResultsSub')}</p>
+      <motion.dl variants={fadeUp} className="glass-panel mb-5 grid grid-cols-4 divide-x divide-surface-border rounded-2xl" data-tour="backlog-vault">
+        {kpis.map((kpi) => (
+          <div key={kpi.label} className="flex flex-col-reverse items-center gap-1 px-1 py-3.5 text-center">
+            <dt className="font-mono text-[8.5px] font-bold uppercase leading-tight tracking-wider text-text-dim">{kpi.label}</dt>
+            <dd className={cn('font-heading text-2xl font-black leading-none', kpi.tone)}>{kpi.value}</dd>
           </div>
-        )}
-      </div>
-    </div>
+        ))}
+      </motion.dl>
+
+      {games.length === 0 ? (
+        <motion.div variants={fadeUp}>
+          <EmptyState
+            art="vault"
+            title={t('backlog.emptyTitle')}
+            body={t('backlog.emptyBody')}
+            actionLabel={t('backlog.emptyCta')}
+            onAction={() => router.push('/discover')}
+          />
+        </motion.div>
+      ) : (
+        <>
+          <div
+            className="sticky z-20 -mx-4 bg-obsidian-black/90 px-4 pb-2 pt-2 backdrop-blur-md"
+            style={{ top: 'calc(var(--sat) + 68px)' }}
+          >
+            <div className="relative">
+              <SearchIcon size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-dim" aria-hidden />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t('backlog.searchPlaceholder')}
+                aria-label={t('backlog.searchPlaceholder')}
+                className="field h-12 bg-surface-glass pl-11 pr-12 font-body"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  aria-label={t('backlog.clearFilters')}
+                  className="absolute right-0 top-0 flex h-12 w-12 items-center justify-center text-text-dim"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
+            {/* The fading right edge signals that the rail scrolls. */}
+            <div className="rail-fade -mx-4 mt-2">
+              <div className="scrollbar-hide flex snap-x gap-2 overflow-x-auto px-4 pr-12" role="group" aria-label={t('backlog.filters')}>
+                <button type="button" onClick={reset} aria-pressed={active.length === 0} className={chip(active.length === 0)}>
+                  {t('common.all')} · {games.length}
+                </button>
+                {filters.map((f) => (
+                  <button key={f.id} type="button" onClick={() => toggle(f.id)} aria-pressed={active.includes(f.id)} className={chip(active.includes(f.id))}>
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {filtered.length > 0 ? (
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {filtered.map((game) => (
+                <GameCard key={game.id} game={game} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              art="search"
+              className="mt-4"
+              title={t('backlog.noResults')}
+              body={t('backlog.noResultsSub')}
+              actionLabel={t('backlog.clearFilters')}
+              onAction={reset}
+            />
+          )}
+        </>
+      )}
+    </motion.div>
   );
 }
